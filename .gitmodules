@@ -1,0 +1,3 @@
+[submodule "miniCalo"]
+	path = miniCalo
+	url = https://github.com/jkiesele/miniCalo
