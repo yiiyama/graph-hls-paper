@@ -1,7 +1,7 @@
 import keras
 from layers.simple import GarNet
 
-n_vert = 250
+n_vert = 256
 n_feat = 4
 n_aggregators = 4
 n_filters = 4
@@ -19,3 +19,10 @@ outputs = v
 
 model = keras.Model(inputs=inputs, outputs=outputs)
 
+if __name__ == '__main__':
+    import sys
+
+    out_path = sys.argv[1]
+
+    with open(out_path, 'w') as json_file:
+        json_file.write(model.to_json())

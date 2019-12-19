@@ -15,6 +15,8 @@ import numpy as np
 import uproot
 import root_numpy as rnp
 
+import models.binaryclass_simple as modelmod
+
 branches = [
     'cluster_pt',
     'n_cell'
@@ -55,6 +57,10 @@ x = np.stack(tuple(data[b][event_filter] for b in x_branches), axis=-1)
 
 x[:, :, 0] = np.sqrt(x[:, :, 0]) # take the sqrt of energy
 x[:, :, 3] = np.where(x[:, :, 3] == 0., 0., (np.abs(x[:, :, 3]) - 300.) / 200.) # shift and scale z to O(1)
+
+if x.shape[1] < modelmod.n_vert:
+    padding = np.zeros((x.shape[0], modelmod.n_vert - x.shape[1], x.shape[2]), dtype=np.float32)
+    x = np.concatenate((x, padding), axis=1)
 
 egamma = data['electron'] + data['photon'] + data['pi0']
 
