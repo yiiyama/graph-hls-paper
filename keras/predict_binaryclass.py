@@ -1,9 +1,11 @@
+#!/usr/bin/env python
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import os
 import sys
 import numpy as np
-import keras
 import uproot
-import root_numpy as rnp
 
 import models.binaryclass_simple as modelmod
 
@@ -30,6 +32,7 @@ if __name__ == '__main__':
     tree = uproot.open(args.data_path)['tree']
     data = tree.arrays(['x', 'n', 'y'], namedecode='ascii')
 
+    n_sample = args.n_sample
     if n_sample < data['x'].shape[0]:
         x = data['x'][:n_sample]
         n = data['n'][:n_sample]
@@ -39,7 +42,7 @@ if __name__ == '__main__':
 
     prob = model.predict(inputs, verbose=1)
 
-    if n_class == 2:
+    if modelmod.n_class == 2:
         truth = data['y'][:n_sample]
         prob = np.squeeze(prob)
         print('accuracy', np.mean(np.asarray(np.asarray(prob > 0.5, dtype=np.int32) == truth, dtype=np.float32)))
@@ -48,17 +51,18 @@ if __name__ == '__main__':
         print('accuracy', np.mean(np.asarray(np.argmax(prob, axis=1) == truth, dtype=np.float32)))
     
     if args.root_out_path:
-        if n_class == 2:
+        import root_numpy as rnp
+
+        if modelmod.n_class == 2:
             prob_shape = ('prob', np.float32)
         else:
-            prob_shape = ('prob', np.float32, (n_class,))
+            prob_shape = ('prob', np.float32, (modelmod.n_class,))
         
         entries = np.empty((n_sample,), dtype=[('x', np.float32, x.shape[1:]), ('n', np.int32), prob_shape, ('truth', np.int32)])
         
         for ient, ent in enumerate(zip(x, n, prob, truth)):
             entries[ient] = ent
-        
-        os.unlink(args.root_out_path)
+
         rnp.array2root(entries, args.root_out_path)
 
     if args.ascii_out_dir:

@@ -17,6 +17,8 @@ if __name__ == '__main__':
     parser.add_argument('--validate', '-v', metavar='PATH', dest='validation_path', help='Validation data file.')
     parser.add_argument('--out', '-o', metavar='PATH', dest='out_path', help='Write HDf5 output to path.')
     parser.add_argument('--ncpu', '-j', metavar='N', dest='ncpu', type=int, default=1, help='Write HDf5 output to path.')
+    parser.add_argument('--batch-size', '-b', metavar='N', dest='batch_size', type=int, default=512, help='Batch size.')
+    parser.add_argument('--num-epochs', '-e', metavar='N', dest='num_epochs', type=int, default=80, help='Number of epochs to train over.')
 
     args = parser.parse_args()
     del sys.argv[1:]
@@ -33,9 +35,6 @@ if __name__ == '__main__':
     else:
         model.compile(optimizer=optimizer, loss='categorical_crossentropy')
     
-    batch_size = 512
-    num_epochs = 80
-    
     tree = uproot.open(args.train_path)['tree']
     data = tree.arrays(['x', 'n', 'y'], namedecode='ascii')
     
@@ -48,7 +47,7 @@ if __name__ == '__main__':
     val_inputs = [data['x'], data['n']]
     val_truth = data['y']
     
-    model.fit(inputs, truth, epochs=num_epochs, batch_size=batch_size, validation_data=(val_inputs, val_truth))
+    model.fit(inputs, truth, epochs=args.num_epochs, batch_size=args.batch_size, validation_data=(val_inputs, val_truth))
     
     if args.out_path:
         model_single.save(args.out_path)
