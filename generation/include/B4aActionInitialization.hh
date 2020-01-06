@@ -6,7 +6,6 @@
 
 #include "B4PrimaryGeneratorAction.hh"
 #include "B4DetectorConstruction.hh"
-#include "NtupleEntry.hh"
 
 #include <set>
 
@@ -23,12 +22,14 @@ public:
   void BuildForMaster() const override;
   void Build() const override;
 
+  void setSaveGeometry(bool b) { saveGeometry_ = b; }
   void setFilename(G4String fname) { fFileName = fname; }
 
 private:
   std::set<B4PrimaryGeneratorAction::particles> const& fParticleTypes;
   SensorDescriptions const& fSensors;
   G4String fFileName{};
+  bool saveGeometry_{false};
 };
 
 #endif

@@ -3,8 +3,8 @@ TARGET=generate
 SOURCE=$(wildcard src/*.cc)
 OBJECTS=$(patsubst src/%.cc,obj/%.o,$(SOURCE))
 
-CFLAGS=$(shell geant4-config --cflags)
-LIBS=$(shell geant4-config --libs)
+CFLAGS=$(shell geant4-config --cflags) -I$(shell root-config --incdir)
+LIBS=$(shell geant4-config --libs) $(shell root-config --libs)
 
 main: $(TARGET)
 

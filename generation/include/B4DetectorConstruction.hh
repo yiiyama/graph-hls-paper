@@ -3,26 +3,27 @@
 
 #include "globals.hh"
 #include "G4VUserDetectorConstruction.hh"
+#include "G4ThreeVector.hh"
 #include "G4VisAttributes.hh"
 
 #include <vector>
 
 struct SensorDescription {
-  SensorDescription(unsigned _id, G4VPhysicalVolume* _sensor, G4VPhysicalVolume* _absorber, G4double _x, G4double _y, G4double _z) :
+  SensorDescription(unsigned _id, G4VPhysicalVolume* _sensor, G4VPhysicalVolume* _absorber, G4ThreeVector const& _pos, G4double _dxy, G4double _dz) :
     id{_id},
     sensor{_sensor},
     absorber{_absorber},
-    x{_x},
-    y{_y},
-    z{_z}
+    pos{_pos},
+    dxy{_dxy},
+    dz{_dz}
   {}
 
   unsigned id{};
   G4VPhysicalVolume* sensor{};
   G4VPhysicalVolume* absorber{};
-  G4double x{};
-  G4double y{};
-  G4double z{};
+  G4ThreeVector pos{};
+  G4double dxy{};
+  G4double dz{};
 };
 
 typedef std::vector<SensorDescription> SensorDescriptions;
@@ -37,6 +38,7 @@ public:
   void ConstructSDandField() override;
 
   SensorDescriptions const& getSensors() const { return sensors_; }
+  void setCheckOverlaps(bool check) { checkOverlaps_ = check; }
      
 private:
   SensorDescriptions sensors_{};

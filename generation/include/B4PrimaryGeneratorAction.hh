@@ -30,7 +30,7 @@ public:
     particles_size //leave this one
   };
 
-  B4PrimaryGeneratorAction(std::set<particles> const&, NtupleEntry&);
+  B4PrimaryGeneratorAction(std::set<particles> const&, NtupleEntry*);
   ~B4PrimaryGeneratorAction();
 
   void GeneratePrimaries(G4Event*) override;
@@ -53,7 +53,7 @@ private:
 
   G4ParticleGun gun_;
   std::vector<particles> const particlesToGenerate_;
-  NtupleEntry& ntuple_;
+  NtupleEntry* ntuple_{nullptr};
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

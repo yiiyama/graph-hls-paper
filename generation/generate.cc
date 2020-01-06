@@ -12,7 +12,7 @@ typedef G4RunManager RunManager;
 #include "FTFP_BERT.hh"
 #include "Randomize.hh"
 
-//#include "G4RandomTools.hh"
+#include "TROOT.h"
 
 #include "include/B4DetectorConstruction.hh"
 #include "include/B4aActionInitialization.hh"
@@ -26,7 +26,7 @@ typedef G4RunManager RunManager;
 namespace {
   void PrintUsage() {
     G4cerr << " Usage: " << G4endl;
-    G4cerr << " exampleB4a -m macro [-s seed] [-f outfile]" << G4endl;
+    G4cerr << " generate [-s seed] [-f outfile] [-dh] [macro]" << G4endl;
   }
 }
 
@@ -35,20 +35,40 @@ namespace {
 int
 main(int argc, char** argv)
 {
+  gROOT->SetBatch(false);
+
   G4String macro{};
   G4String outfile{"out"};
   G4long seed{0};
+  G4String nthreads{"1"};
+  bool saveGeometry{false};
 
-  for (G4int i = 1; i < argc; i = i + 2) {
-    if (G4String(argv[i]) == "-m")
-      macro = argv[i+1];
-    else if (G4String(argv[i]) == "-f")
+  G4int i{1};
+  while (i < argc) {
+    G4String opt{argv[i]};
+    if (opt == "-f") {
       outfile = argv[i+1];
-    else if (G4String(argv[i]) == "-s")
-      seed = G4UIcommand::ConvertToInt(argv[i+1]);      
-    else {
+      i += 2;
+    }
+    else if (opt == "-s") {
+      seed = G4UIcommand::ConvertToInt(argv[i+1]);
+      i += 2;
+    }
+    else if (opt == "-g") {
+      saveGeometry = true;
+      i += 1;
+    }
+    else if (opt == "-j") {
+      nthreads = argv[i+1];
+      i += 2;
+    }
+    else if (opt == "-h") {
       PrintUsage();
-      return 1;
+      return 0;
+    }
+    else {
+      macro = opt;
+      i += 1;
     }
   }
 
@@ -65,24 +85,34 @@ main(int argc, char** argv)
   auto runManager{std::make_unique<RunManager>()};
 
   auto* dc{new B4DetectorConstruction()};
+  dc->setCheckOverlaps(false);
   runManager->SetUserInitialization(dc);
+
   runManager->SetUserInitialization(new FTFP_BERT);
+
   auto* ai{new B4aActionInitialization(particleTypes, dc->getSensors())};
+  ai->setSaveGeometry(saveGeometry);
   ai->setFilename(outfile);
   runManager->SetUserInitialization(ai);
 
   runManager->SetPrintProgress(1);
 
-  G4UImanager::GetUIpointer()->ApplyCommand("/run/numberOfThreads 1");
+  G4UImanager::GetUIpointer()->ApplyCommand("/run/numberOfThreads " + nthreads);
+
+  if (saveGeometry) {
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/initialize");
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/beamOn 1");
+    return 0;
+  }
 
   std::unique_ptr<G4VisExecutive> visManager;
   if (ui) {
     visManager.reset(new G4VisExecutive());
     visManager->Initialize();
 
-    G4UImanager::GetUIpointer()->ApplyCommand("/control/execute init_vis.mac");
+    G4UImanager::GetUIpointer()->ApplyCommand("/control/execute macros/init_vis.mac");
     if (ui->IsGUI())
-      G4UImanager::GetUIpointer()->ApplyCommand("/control/execute gui.mac");
+      G4UImanager::GetUIpointer()->ApplyCommand("/control/execute macros/gui.mac");
 
     ui->SessionStart();
   }

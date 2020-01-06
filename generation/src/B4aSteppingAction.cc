@@ -1,12 +1,13 @@
 #include "../include/B4aSteppingAction.hh"
 
 #include "G4Step.hh"
+#include "G4SystemOfUnits.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4aSteppingAction::B4aSteppingAction(NtupleEntry& ntuple, SensorDescriptions const& sensors) :
+B4aSteppingAction::B4aSteppingAction(NtupleEntry* ntuple, SensorDescriptions const& sensors) :
   G4UserSteppingAction(),
-  ntuple_(ntuple)
+  ntuple_{ntuple}
 {
   for (auto& sd : sensors) {
     sensors_[sd.sensor] = sd.id;
@@ -25,6 +26,9 @@ B4aSteppingAction::~B4aSteppingAction()
 void
 B4aSteppingAction::UserSteppingAction(const G4Step* step)
 {
+  if (ntuple_ == nullptr)
+    return;
+
   // Collect energy and track length step by step
 
   // get volume of the current step
@@ -43,7 +47,7 @@ B4aSteppingAction::UserSteppingAction(const G4Step* step)
   else
     calibration = sensorCalibration;
 
-  ntuple_.recoEnergy[vItr->second] += step->GetTotalEnergyDeposit() * calibration;
+  ntuple_->recoEnergy[vItr->second] += step->GetTotalEnergyDeposit() / MeV * calibration;
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

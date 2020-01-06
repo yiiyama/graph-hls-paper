@@ -3,13 +3,16 @@
 #include "../include/B4RunAction.hh"
 #include "../include/B4aEventAction.hh"
 #include "../include/B4aSteppingAction.hh"
+#include "../include/B4DetectorConstruction.hh"
+
+#include "G4RunManager.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 B4aActionInitialization::B4aActionInitialization(std::set<B4PrimaryGeneratorAction::particles> const& particleTypes, SensorDescriptions const& sensors) :
   G4VUserActionInitialization(),
   fParticleTypes(particleTypes),
-  fSensors(sensors)
+  fSensors{sensors}
 {
 }
 
@@ -23,8 +26,12 @@ B4aActionInitialization::~B4aActionInitialization()
 
 void B4aActionInitialization::BuildForMaster() const
 {
-  auto* runAction{new B4RunAction(fSensors.size())};
+  auto* runAction{new B4RunAction()};
   runAction->setFileName(fFileName);
+  if (saveGeometry_)
+    runAction->saveGeometry();
+  else
+    runAction->bookNtuple(fSensors.size());
   SetUserAction(runAction);
 }
 
@@ -32,16 +39,21 @@ void B4aActionInitialization::BuildForMaster() const
 
 void B4aActionInitialization::Build() const
 {
-  auto* runAction{new B4RunAction(fSensors.size())};
+  auto* runAction{new B4RunAction()};
   runAction->setFileName(fFileName);
+  if (saveGeometry_)
+    runAction->saveGeometry();
+  else
+    runAction->bookNtuple(fSensors.size());
   SetUserAction(runAction);
 
   SetUserAction(new B4PrimaryGeneratorAction(fParticleTypes, runAction->getNtuple()));
 
-  auto* eventAction{new B4aEventAction(runAction->getNtuple())};
+  auto* eventAction{new B4aEventAction(runAction->getNtuple(), fSensors)};
   SetUserAction(eventAction);
 
   SetUserAction(new B4aSteppingAction(runAction->getNtuple(), fSensors));
+
   G4cout << "actions initialised" <<G4endl;
 }  
 

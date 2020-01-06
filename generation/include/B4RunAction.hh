@@ -28,21 +28,20 @@
 
 class B4RunAction : public G4UserRunAction {
 public:
-  B4RunAction(unsigned nSensors);
+  B4RunAction();
   ~B4RunAction();
-
-  void setFileName(G4String fname) { fname_ = fname; }
-  void setAddDetectorData(bool b) { addDetectorData_ = b; }
 
   void BeginOfRunAction(const G4Run*) override;
   void EndOfRunAction(const G4Run*) override;
 
-  NtupleEntry& getNtuple() { return ntuple_; }
+  void setFileName(G4String fname) { fname_ = fname; }
+  void saveGeometry();
+  void bookNtuple(unsigned nSensors);
+  NtupleEntry* getNtuple() { return ntuple_.get(); }
 
 private:
-  NtupleEntry ntuple_;
   G4String fname_{""};
-  bool addDetectorData_{false};
+  std::unique_ptr<NtupleEntry> ntuple_{nullptr};
 };
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

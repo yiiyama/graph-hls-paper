@@ -1,15 +1,13 @@
 #include "../include/B4RunAction.hh"
+#include "../include/B4DetectorConstruction.hh"
 
 #include "G4Run.hh"
 #include "G4RunManager.hh"
-#include "G4UnitsTable.hh"
-#include "G4SystemOfUnits.hh"
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
-B4RunAction::B4RunAction(unsigned nsensors) :
-  G4UserRunAction(),
-  ntuple_(nsensors)
+B4RunAction::B4RunAction() :
+  G4UserRunAction()
 { 
   auto* analysisManager{G4AnalysisManager::Instance()};
   G4cout << "Using " << analysisManager->GetType() << G4endl;
@@ -18,13 +16,15 @@ B4RunAction::B4RunAction(unsigned nsensors) :
   analysisManager->SetNtupleMerging(true);
   analysisManager->SetNtupleRowWise(false);
 
-  analysisManager->CreateNtuple("events", "");
-  ntuple_.createColumns(*analysisManager);
-  analysisManager->FinishNtuple();
 
-  if (addDetectorData_) {
+  // if (nSensors != 0) {
+  //   analysisManager->CreateNtuple("events", "");
 
-  }
+  //   ntuple_.reset(new NtupleEntry(nSensors));
+  //   ntuple_->createColumns(*analysisManager);
+
+  //   analysisManager->FinishNtuple();
+  // }
 
   G4cout << "run action initialised" << G4endl;
 }
@@ -36,13 +36,36 @@ B4RunAction::~B4RunAction()
   delete G4AnalysisManager::Instance();  
 }
 
+void B4RunAction::saveGeometry()
+{
+  auto* analysisManager{G4AnalysisManager::Instance()};
+  analysisManager->CreateNtuple("detector", "");
+ 
+  analysisManager->CreateNtupleIColumn("id");
+  analysisManager->CreateNtupleFColumn("x");
+  analysisManager->CreateNtupleFColumn("y");
+  analysisManager->CreateNtupleFColumn("z");
+  analysisManager->CreateNtupleFColumn("dxy");
+  analysisManager->CreateNtupleFColumn("dz");
+ 
+  analysisManager->FinishNtuple();
+}
+
+void B4RunAction::bookNtuple(unsigned nSensors)
+{
+  auto* analysisManager{G4AnalysisManager::Instance()};
+  analysisManager->CreateNtuple("events", "");
+
+  ntuple_.reset(new NtupleEntry(nSensors));
+  ntuple_->createColumns(*analysisManager);
+
+  analysisManager->FinishNtuple();
+}
+
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
 void B4RunAction::BeginOfRunAction(const G4Run*)
 { 
-  //inform the runManager to save random number seed
-  //G4RunManager::GetRunManager()->SetRandomNumberStore(true);
-  
   if (!fname_.empty())
     G4AnalysisManager::Instance()->OpenFile(fname_);
 }

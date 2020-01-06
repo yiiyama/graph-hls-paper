@@ -30,11 +30,11 @@ B4PrimaryGeneratorAction::particleNamesG4[particles_size] = {
   "gamma"
 };
 
-B4PrimaryGeneratorAction::B4PrimaryGeneratorAction(std::set<particles> const& particleTypes, NtupleEntry& ntuple) :
+B4PrimaryGeneratorAction::B4PrimaryGeneratorAction(std::set<particles> const& particleTypes, NtupleEntry* ntuple) :
   G4VUserPrimaryGeneratorAction(),
   gun_(1), // generate one particle at a time
   particlesToGenerate_(particleTypes.begin(), particleTypes.end()),
-  ntuple_(ntuple)
+  ntuple_{ntuple}
 {
 }
 
@@ -62,15 +62,18 @@ B4PrimaryGeneratorAction::GeneratePrimaries(G4Event* event)
 
   gun_.SetParticleDefinition(pdef);
   gun_.SetParticleEnergy(energy * GeV);
+  gun_.SetParticleMomentumDirection(G4ThreeVector(0., 0., 1.));
   gun_.SetParticlePosition(position);
   gun_.GeneratePrimaryVertex(event);
 
-  ntuple_.clear();
-
-  ntuple_.genPid = pid;
-  ntuple_.genEnergy = energy;
-  ntuple_.genX = xpos;
-  ntuple_.genY = ypos;
+  if (ntuple_ != nullptr) {
+    ntuple_->clear();
+    
+    ntuple_->genPid = pid;
+    ntuple_->genEnergy = energy;
+    ntuple_->genX = xpos;
+    ntuple_->genY = ypos;
+  }
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
