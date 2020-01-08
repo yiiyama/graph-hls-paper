@@ -24,12 +24,18 @@ public:
 
   void setSaveGeometry(bool b) { saveGeometry_ = b; }
   void setFilename(G4String fname) { fFileName = fname; }
+  void setEnergy(G4double minE, G4double maxE) { minE_ = minE; maxE_ = maxE; }
+  void setPositionWindow(G4double maxX, G4double maxY) { maxX_ = maxX; maxY_ = maxY; }
 
 private:
   std::set<B4PrimaryGeneratorAction::particles> const& fParticleTypes;
   SensorDescriptions const& fSensors;
-  G4String fFileName{};
   bool saveGeometry_{false};
+  G4String fFileName{};
+  G4double minE_{10.};
+  G4double maxE_{100.};
+  G4double maxX_{10.};
+  G4double maxY_{10.};
 };
 
 #endif

@@ -47,7 +47,12 @@ void B4aActionInitialization::Build() const
     runAction->bookNtuple(fSensors.size());
   SetUserAction(runAction);
 
-  SetUserAction(new B4PrimaryGeneratorAction(fParticleTypes, runAction->getNtuple()));
+  auto* genAction{new B4PrimaryGeneratorAction(fParticleTypes, runAction->getNtuple())};
+  genAction->setMaxEnergy(maxE_);
+  genAction->setMinEnergy(minE_);
+  genAction->setMaxX(maxX_);
+  genAction->setMaxY(maxY_);
+  SetUserAction(genAction);
 
   auto* eventAction{new B4aEventAction(runAction->getNtuple(), fSensors)};
   SetUserAction(eventAction);

@@ -82,8 +82,6 @@ B4DetectorConstruction::Construct()
     detectorSizeZ += (layerDZAbs[iDet] + layerDZSi[iDet]) * nLayers[iDet];
 
   G4RotationMatrix detectorRotation(G4ThreeVector(0., 0., 1.), CLHEP::pi / 6.);
-  auto detectorRotationInverse{detectorRotation};
-  detectorRotationInverse.invert();
   G4ThreeVector detectorDisplacement(0., 0., detectorFaceZ + detectorSizeZ * 0.5);
   G4Transform3D detectorPositioning(detectorRotation, detectorDisplacement);
 
@@ -192,7 +190,7 @@ B4DetectorConstruction::Construct()
             checkOverlaps_ // checking overlaps
           )};
           
-          auto sensorPosition{detectorRotationInverse * (sensorDisplacement + layerDisplacement + caloDisplacement + detectorDisplacement)};
+          auto sensorPosition{detectorRotation * (sensorDisplacement + layerDisplacement + caloDisplacement + detectorDisplacement)};
   
           sensors_.emplace_back(id, sensorPV, absPV, sensorPosition, sensorEdge, layerDZSi[iDet]);
   

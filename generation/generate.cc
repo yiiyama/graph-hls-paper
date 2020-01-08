@@ -20,6 +20,7 @@ typedef G4RunManager RunManager;
 
 #include <memory>
 #include <set>
+#include <stdexcept>
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
 
@@ -42,6 +43,12 @@ main(int argc, char** argv)
   G4long seed{0};
   G4String nthreads{"1"};
   bool saveGeometry{false};
+  G4double minEnergy{10.};
+  G4double maxEnergy{100.};
+  G4double maxX{10.};
+  G4double maxY{10.};
+  std::set<B4PrimaryGeneratorAction::particles> particleTypes{{B4PrimaryGeneratorAction::elec, B4PrimaryGeneratorAction::pioncharged}};
+  G4int nevents{-1};
 
   G4int i{1};
   while (i < argc) {
@@ -62,6 +69,45 @@ main(int argc, char** argv)
       nthreads = argv[i+1];
       i += 2;
     }
+    else if (opt == "-e") {
+      minEnergy = std::stoi(argv[i+1]);
+      maxEnergy = std::stoi(argv[i+2]);
+      i += 3;
+    }
+    else if (opt == "-x") {
+      maxX = std::stoi(argv[i+1]);
+      maxY = std::stoi(argv[i+2]);
+      i += 3;
+    }
+    else if (opt == "-p") {
+      particleTypes.clear();
+      G4String const* nbegin{B4PrimaryGeneratorAction::particleNames};
+      G4String const* nend{B4PrimaryGeneratorAction::particleNames + B4PrimaryGeneratorAction::particles_size};
+      
+      std::string particles(argv[i+1]);
+      size_t pos{0};
+      while (true) {
+        auto comma{particles.find(",", pos)};
+
+        G4String name(particles.substr(pos, comma));
+        auto nitr{std::find(nbegin, nend, name)};
+        if (nitr == nend)
+          throw std::runtime_error("Invalid particle name " + name);
+        std::cout << name << " " << (nitr - nbegin) << std::endl;
+        particleTypes.insert(B4PrimaryGeneratorAction::particles(nitr - nbegin));
+
+        if (comma == std::string::npos)
+          break;
+        
+        pos = comma + 1;
+      }
+        
+      i += 2;
+    }
+    else if (opt == "-n") {
+      nevents = std::stoi(argv[i+1]);
+      i += 2;
+    }
     else if (opt == "-h") {
       PrintUsage();
       return 0;
@@ -73,10 +119,8 @@ main(int argc, char** argv)
   }
 
   std::unique_ptr<G4UIExecutive> ui{};
-  if (macro.size() == 0)
+  if (macro.size() == 0 && nevents == -1)
     ui.reset(new G4UIExecutive(argc, argv));
-
-  std::set<B4PrimaryGeneratorAction::particles> particleTypes{{B4PrimaryGeneratorAction::elec, B4PrimaryGeneratorAction::pioncharged}};
 
   auto engine{std::make_unique<CLHEP::RanecuEngine>()};
   G4Random::setTheEngine(engine.get());
@@ -93,6 +137,8 @@ main(int argc, char** argv)
   auto* ai{new B4aActionInitialization(particleTypes, dc->getSensors())};
   ai->setSaveGeometry(saveGeometry);
   ai->setFilename(outfile);
+  ai->setEnergy(minEnergy, maxEnergy);
+  ai->setPositionWindow(maxX, maxY);
   runManager->SetUserInitialization(ai);
 
   runManager->SetPrintProgress(1);
@@ -116,9 +162,14 @@ main(int argc, char** argv)
 
     ui->SessionStart();
   }
-  else
+  else if (nevents == -1)
     G4UImanager::GetUIpointer()->ApplyCommand("/control/execute " + macro);
-
+  else {
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/initialize");
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/printProgress 1");
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/beamOn " + std::to_string(nevents));
+  }
+    
   return 0;
 }
 
