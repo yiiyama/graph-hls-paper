@@ -43,7 +43,6 @@ B4DetectorConstruction::Construct()
   constexpr G4double sensorEdgeSmall{2. * cm};
 
   G4ThreeVector origin(0., 0., 0.);
-  G4RotationMatrix sensorRotation(G4ThreeVector(0., 0., 1.), CLHEP::pi / 4.);
 
   // Material
   auto* nist{G4NistManager::Instance()};

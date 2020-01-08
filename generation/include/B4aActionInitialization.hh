@@ -26,6 +26,7 @@ public:
   void setFilename(G4String fname) { fFileName = fname; }
   void setEnergy(G4double minE, G4double maxE) { minE_ = minE; maxE_ = maxE; }
   void setPositionWindow(G4double maxX, G4double maxY) { maxX_ = maxX; maxY_ = maxY; }
+  void setAddPileup(bool b) { addPileup_ = b; }
 
 private:
   std::set<B4PrimaryGeneratorAction::particles> const& fParticleTypes;
@@ -36,6 +37,7 @@ private:
   G4double maxE_{100.};
   G4double maxX_{10.};
   G4double maxY_{10.};
+  bool addPileup_{false};
 };
 
 #endif

@@ -52,6 +52,7 @@ void B4aActionInitialization::Build() const
   genAction->setMinEnergy(minE_);
   genAction->setMaxX(maxX_);
   genAction->setMaxY(maxY_);
+  genAction->setAddPileup(addPileup_);
   SetUserAction(genAction);
 
   auto* eventAction{new B4aEventAction(runAction->getNtuple(), fSensors)};

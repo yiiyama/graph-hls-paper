@@ -48,73 +48,87 @@ main(int argc, char** argv)
   G4double maxX{10.};
   G4double maxY{10.};
   std::set<B4PrimaryGeneratorAction::particles> particleTypes{{B4PrimaryGeneratorAction::elec, B4PrimaryGeneratorAction::pioncharged}};
+  bool addPileup{false};
   G4int nevents{-1};
 
   G4int i{1};
   while (i < argc) {
-    G4String opt{argv[i]};
-    if (opt == "-f") {
-      outfile = argv[i+1];
-      i += 2;
-    }
-    else if (opt == "-s") {
-      seed = G4UIcommand::ConvertToInt(argv[i+1]);
-      i += 2;
-    }
-    else if (opt == "-g") {
-      saveGeometry = true;
-      i += 1;
-    }
-    else if (opt == "-j") {
-      nthreads = argv[i+1];
-      i += 2;
-    }
-    else if (opt == "-e") {
-      minEnergy = std::stoi(argv[i+1]);
-      maxEnergy = std::stoi(argv[i+2]);
-      i += 3;
-    }
-    else if (opt == "-x") {
-      maxX = std::stoi(argv[i+1]);
-      maxY = std::stoi(argv[i+2]);
-      i += 3;
-    }
-    else if (opt == "-p") {
-      particleTypes.clear();
-      G4String const* nbegin{B4PrimaryGeneratorAction::particleNames};
-      G4String const* nend{B4PrimaryGeneratorAction::particleNames + B4PrimaryGeneratorAction::particles_size};
-      
-      std::string particles(argv[i+1]);
-      size_t pos{0};
-      while (true) {
-        auto comma{particles.find(",", pos)};
-
-        G4String name(particles.substr(pos, comma));
-        auto nitr{std::find(nbegin, nend, name)};
-        if (nitr == nend)
-          throw std::runtime_error("Invalid particle name " + name);
-        std::cout << name << " " << (nitr - nbegin) << std::endl;
-        particleTypes.insert(B4PrimaryGeneratorAction::particles(nitr - nbegin));
-
-        if (comma == std::string::npos)
-          break;
-        
-        pos = comma + 1;
+    try {
+      G4String opt{argv[i]};
+      if (opt == "-f") {
+        outfile = argv[i+1];
+        i += 2;
       }
+      else if (opt == "-s") {
+        seed = G4UIcommand::ConvertToInt(argv[i+1]);
+        i += 2;
+      }
+      else if (opt == "-g") {
+        saveGeometry = true;
+        i += 1;
+      }
+      else if (opt == "-j") {
+        nthreads = argv[i+1];
+        i += 2;
+      }
+      else if (opt == "-e") {
+        minEnergy = std::stof(argv[i+1]);
+        maxEnergy = std::stof(argv[i+2]);
+        i += 3;
+      }
+      else if (opt == "-x") {
+        maxX = std::stof(argv[i+1]);
+        maxY = std::stof(argv[i+2]);
+        i += 3;
+      }
+      else if (opt == "-p") {
+        particleTypes.clear();
+        G4String const* nbegin{B4PrimaryGeneratorAction::particleNames};
+        G4String const* nend{B4PrimaryGeneratorAction::particleNames + B4PrimaryGeneratorAction::particles_size};
+      
+        std::string particles(argv[i+1]);
+        if (particles != "-") {
+          size_t pos{0};
+          while (true) {
+            auto comma{particles.find(",", pos)};
+
+            G4String name(particles.substr(pos, comma));
+            auto nitr{std::find(nbegin, nend, name)};
+            if (nitr == nend)
+              throw std::runtime_error("Invalid particle name " + name);
+            std::cout << name << " " << (nitr - nbegin) << std::endl;
+            particleTypes.insert(B4PrimaryGeneratorAction::particles(nitr - nbegin));
+
+            if (comma == std::string::npos)
+              break;
         
-      i += 2;
+            pos = comma + 1;
+          }
+        }
+        
+        i += 2;
+      }
+      else if (opt == "-u") {
+        addPileup = true;
+        i += 1;
+      }
+      else if (opt == "-n") {
+        nevents = std::stoi(argv[i+1]);
+        i += 2;
+      }
+      else if (opt == "-h") {
+        PrintUsage();
+        return 0;
+      }
+      else {
+        macro = opt;
+        i += 1;
+      }
     }
-    else if (opt == "-n") {
-      nevents = std::stoi(argv[i+1]);
-      i += 2;
-    }
-    else if (opt == "-h") {
+    catch (std::exception& ex) {
+      std::cerr << ex.what() << std::endl;
       PrintUsage();
-      return 0;
-    }
-    else {
-      macro = opt;
-      i += 1;
+      return 1;
     }
   }
 
@@ -139,6 +153,7 @@ main(int argc, char** argv)
   ai->setFilename(outfile);
   ai->setEnergy(minEnergy, maxEnergy);
   ai->setPositionWindow(maxX, maxY);
+  ai->setAddPileup(addPileup);
   runManager->SetUserInitialization(ai);
 
   runManager->SetPrintProgress(1);
@@ -167,6 +182,7 @@ main(int argc, char** argv)
   else {
     G4UImanager::GetUIpointer()->ApplyCommand("/run/initialize");
     G4UImanager::GetUIpointer()->ApplyCommand("/run/printProgress 1");
+    G4UImanager::GetUIpointer()->ApplyCommand("/run/verbose 0");
     G4UImanager::GetUIpointer()->ApplyCommand("/run/beamOn " + std::to_string(nevents));
   }
     

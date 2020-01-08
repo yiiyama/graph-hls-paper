@@ -26,8 +26,10 @@ B4aEventAction::BeginOfEventAction(const G4Event*)
 {  
   // ntuples can only be filled in events - otherwise I'd do this in DetectorConstruction
 
-  if (ntuple_ != nullptr)
+  if (ntuple_ != nullptr) {
+    ntuple_->clear();
     return;
+  }
 
   auto* analysisManager{G4AnalysisManager::Instance()};
 

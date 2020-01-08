@@ -35,6 +35,7 @@ public:
 
   void GeneratePrimaries(G4Event*) override;
 
+  void setAddPileup(bool b) { addPileup_ = b; }
   void setZpos(G4double z) { zpos_ = z; }
   void setMaxEnergy(G4double e) { maxEnergy_ = e; }
   void setMinEnergy(G4double e) { minEnergy_ = e; }
@@ -45,6 +46,7 @@ public:
   static G4String const particleNamesG4[particles_size];
 
 private:
+  bool addPileup_{false};
   G4double zpos_{0.};
   G4double maxEnergy_{100.};
   G4double minEnergy_{10.};
