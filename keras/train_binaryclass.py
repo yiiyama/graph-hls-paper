@@ -4,8 +4,6 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import sys
 import keras
-import uproot
-import h5py
 
 import models.binaryclass_simple as modelmod
 
@@ -20,7 +18,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch-size', '-b', metavar='N', dest='batch_size', type=int, default=512, help='Batch size.')
     parser.add_argument('--num-epochs', '-e', metavar='N', dest='num_epochs', type=int, default=80, help='Number of epochs to train over.')
     parser.add_argument('--sparse-input', '-S', action='store_true', dest='sparse_input', help='Input is variable length.')
-    parser.add_argument('--input-type', '-i', metavar='TYPE', dest='input_type', help='Input data format (h5, root, root-sparse).')
+    parser.add_argument('--input-type', '-i', metavar='TYPE', dest='input_type', default='h5', help='Input data format (h5, root, root-sparse).')
     parser.add_argument('--generator', '-g', action='store_true', dest='use_generator', help='Use a generator for input.')
 
     args = parser.parse_args()
@@ -42,52 +40,54 @@ if __name__ == '__main__':
         if args.input_type == 'h5':
             from generators.h5 import make_generator
         elif args.input_type == 'root':
-            from generators.uproot import make_generator
+            from generators.uproot_fixed import make_generator
         elif args.input_type == 'root-sparse':
             from generators.uproot_jagged import make_generator
 
         train_gen, n_train_steps = make_generator(args.train_path, args.batch_size)
-        valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size)
+        fit_kwargs = {'steps_per_epoch': n_train_steps, 'epochs': args.num_epochs}
 
-        model.fit_generator(
-            train_gen(),
-            steps_per_epoch=n_train_steps,
-            epochs=args.num_epochs,
-            validation_data=valid_gen(),
-            validation_steps=n_valid_steps
-        )
+        if args.validation_path:
+            valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size)
+            fit_kwargs['validation_data'] = valid_gen()
+            fit_kwargs['validation_steps'] = n_valid_steps
+
+        model.fit_generator(train_gen(), **fit_kwargs)
 
     else:
         if args.input_type == 'h5':
-            ftrain = h5py.File(args.train_path)
+            import h5py
+
+            ftrain = h5py.File(args.train_path[0])
             inputs = [ftrain['x'], ftrain['n']]
             truth = ftrain['y']
-        
-            fvalid = h5py.File(args.validation_path)
-            val_inputs = [fvalid['x'], fvalid['n']]
-            val_truth = fvalid['y']
+           
+            if args.validation_path:
+                fvalid = h5py.File(args.validation_path[0])
+                val_inputs = [fvalid['x'], fvalid['n']]
+                val_truth = fvalid['y']
 
             shuffle = 'batch'
 
         elif args.input_type == 'root':
-            data = uproot.open(args.train_path)['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
+            import uproot
+
+            data = uproot.open(args.train_path[0])['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
             inputs = [data['x'], data['n']]
             truth = data['y']
             
-            data = uproot.open(args.validation_path)['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
-            val_inputs = [data['x'], data['n']]
-            val_truth = data['y']
+            if args.validation_path:
+                data = uproot.open(args.validation_path[0])['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
+                val_inputs = [data['x'], data['n']]
+                val_truth = data['y']
 
             shuffle = True
-        
-        model.fit(
-            inputs,
-            truth,
-            epochs=args.num_epochs,
-            batch_size=args.batch_size,
-            validation_data=(val_inputs, val_truth),
-            shuffle=shuffle
-        )
+
+        fit_kwargs = {'epochs': args.num_epochs, 'batch_size': args.batch_size, 'shuffle': shuffle}
+        if args.validation_path:
+            fit_kwargs['validation_data'] = (val_inputs, val_truth)
+
+        model.fit(inputs, truth, **fit_kwargs)
     
     if args.out_path:
         model_single.save(args.out_path)
