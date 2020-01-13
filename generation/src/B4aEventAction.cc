@@ -11,6 +11,8 @@ B4aEventAction::B4aEventAction(NtupleEntry* ntuple, SensorDescriptions const& se
   ntuple_{ntuple},
   sensors_{sensors}
 {
+  if (ntuple_ != nullptr)
+    ntuple_->clear();
 }
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......
@@ -24,12 +26,10 @@ B4aEventAction::~B4aEventAction()
 void
 B4aEventAction::BeginOfEventAction(const G4Event*)
 {  
-  // ntuples can only be filled in events - otherwise I'd do this in DetectorConstruction
-
-  if (ntuple_ != nullptr) {
-    ntuple_->clear();
+  if (ntuple_ != nullptr)
     return;
-  }
+
+  // ntuples can only be filled in events - otherwise I'd do this in DetectorConstruction
 
   auto* analysisManager{G4AnalysisManager::Instance()};
 
@@ -59,6 +59,8 @@ B4aEventAction::EndOfEventAction(const G4Event*)
   analysisManager->FillNtupleDColumn(ntuple_->columnId[NtupleEntry::cGenX], ntuple_->genX);
   analysisManager->FillNtupleDColumn(ntuple_->columnId[NtupleEntry::cGenY], ntuple_->genY);
   analysisManager->AddNtupleRow();
-}  
+
+  ntuple_->clear();
+}
 
 //....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo........oooOO0OOooo......

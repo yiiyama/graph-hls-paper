@@ -29,7 +29,7 @@ G4VPhysicalVolume*
 B4DetectorConstruction::Construct()
 {
   // Geometry parameters
-  constexpr G4double caloSizeXY{30. * cm};
+  constexpr G4double caloSizeXY{36. * cm};
   constexpr G4double worldSizeXY{1.5 * caloSizeXY};
   constexpr G4double worldSizeZ{10. * m};
 
@@ -39,8 +39,8 @@ B4DetectorConstruction::Construct()
   constexpr G4double layerDZAbs[2] = {0.57 * cm, 4.17 * cm};
   constexpr G4double layerDZSi[2] = {0.03 * cm, 0.03 * cm};
 
-  constexpr G4double sensorEdgeLarge{3. * cm};
-  constexpr G4double sensorEdgeSmall{2. * cm};
+  constexpr G4double lgTiling{12}; // number of sensor tiling in one dimension in low-granularity region
+  constexpr G4double hgTiling{16}; // number of sensor tiling in one dimension in high-granularity region
 
   G4ThreeVector origin(0., 0., 0.);
 
@@ -48,11 +48,16 @@ B4DetectorConstruction::Construct()
   auto* nist{G4NistManager::Instance()};
 
   auto* air{nist->FindOrBuildMaterial("G4_AIR")};
-  auto* copper{nist->FindOrBuildMaterial("G4_Cu")};
-  auto* stainless{nist->FindOrBuildMaterial("G4_STAINLESS-STEEL")};
-  auto* silicon{nist->FindOrBuildMaterial("G4_Si")};
+  G4Material* absMaterial[2]{};
+  G4Material* sensorMaterial{};
 
-  G4Material* absMaterial[2] = {copper, stainless};
+  if (geometryType_ == kHGCALish) {
+    absMaterial[0] = nist->FindOrBuildMaterial("G4_Cu");
+    absMaterial[1] = nist->FindOrBuildMaterial("G4_STAINLESS-STEEL");
+    sensorMaterial = nist->FindOrBuildMaterial("G4_Si");
+  }
+  else if (geometryType_ == kMiniCalo)
+    absMaterial[0] = absMaterial[1] = sensorMaterial = nist->FindOrBuildMaterial("G4_W");
 
   // Clear list of sensors
   sensors_.clear();
@@ -80,7 +85,9 @@ B4DetectorConstruction::Construct()
   for (unsigned iDet{0}; iDet != 2; ++iDet)
     detectorSizeZ += (layerDZAbs[iDet] + layerDZSi[iDet]) * nLayers[iDet];
 
-  G4RotationMatrix detectorRotation(G4ThreeVector(0., 0., 1.), CLHEP::pi / 6.);
+  G4RotationMatrix detectorRotation;
+  if (geometryType_ == kHGCALish)
+    detectorRotation = G4RotationMatrix(G4ThreeVector(0., 0., 1.), CLHEP::pi / 6.);
   G4ThreeVector detectorDisplacement(0., 0., detectorFaceZ + detectorSizeZ * 0.5);
   G4Transform3D detectorPositioning(detectorRotation, detectorDisplacement);
 
@@ -147,65 +154,168 @@ B4DetectorConstruction::Construct()
       // Absorber and sensor tiles
       //
 
-      auto sensorEdge{sensorEdgeLarge};
-
-      G4double ytop{caloSizeXY * 0.5};
-      while (true) {
-        G4double xleft{-caloSizeXY * 0.5};
+      if (geometryType_ == kHGCALish) {
+        auto sensorEdge{caloSizeXY * lgTiling};
+        G4double ytop{caloSizeXY * 0.5};
         while (true) {
-          auto id{sensors_.size()};
+          G4double xleft{-caloSizeXY * 0.5};
+          while (true) {
+            auto id{sensors_.size()};
 
-          auto xpos{xleft + sensorEdge * 0.5};
-          auto ypos{ytop - sensorEdge * 0.5};
+            auto xpos{xleft + sensorEdge * 0.5};
+            auto ypos{ytop - sensorEdge * 0.5};
 
-          // absorber
-          G4String absName{"Absorber_" + std::to_string(id)};
-          auto* absSolid{new G4Box(absName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZAbs[iDet] * 0.5)};
-          auto* absLV{new G4LogicalVolume(absSolid, absMaterial[iDet], absName)};
-          auto* absPV{new G4PVPlacement(
-            nullptr,
-            G4ThreeVector(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] * 0.5),
-            absLV, // logical volume
-            absName, // name
-            layerLV, // its mother volume
-            false, // pMany
-            0, // copy number
-            checkOverlaps_ // checking overlaps
-          )};
+            // absorber
+            G4String absName{"Absorber_" + std::to_string(id)};
+            auto* absSolid{new G4Box(absName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZAbs[iDet] * 0.5)};
+            auto* absLV{new G4LogicalVolume(absSolid, absMaterial[iDet], absName)};
+            auto* absPV{new G4PVPlacement(
+                                          nullptr,
+                                          G4ThreeVector(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] * 0.5),
+                                          absLV, // logical volume
+                                          absName, // name
+                                          layerLV, // its mother volume
+                                          false, // pMany
+                                          0, // copy number
+                                          checkOverlaps_ // checking overlaps
+                                          )};
 
-          // sensor
-          G4String sensorName{"Sensor_" + std::to_string(id)};
-          G4ThreeVector sensorDisplacement(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] + layerDZSi[iDet] * 0.5);
-          auto* sensorSolid{new G4Box(sensorName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZSi[iDet] * 0.5)};
-          auto* sensorLV{new G4LogicalVolume(sensorSolid, silicon, sensorName)};
-          auto* sensorPV{new G4PVPlacement(
-            nullptr,
-            sensorDisplacement,
-            sensorLV, // logical volume
-            sensorName, // name
-            layerLV, // its mother volume
-            false, // pMany
-            0, // copy number
-            checkOverlaps_ // checking overlaps
-          )};
+            // sensor
+            G4String sensorName{"Sensor_" + std::to_string(id)};
+            G4ThreeVector sensorDisplacement(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] + layerDZSi[iDet] * 0.5);
+            auto* sensorSolid{new G4Box(sensorName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZSi[iDet] * 0.5)};
+            auto* sensorLV{new G4LogicalVolume(sensorSolid, sensorMaterial, sensorName)};
+            auto* sensorPV{new G4PVPlacement(
+                                             nullptr,
+                                             sensorDisplacement,
+                                             sensorLV, // logical volume
+                                             sensorName, // name
+                                             layerLV, // its mother volume
+                                             false, // pMany
+                                             0, // copy number
+                                             checkOverlaps_ // checking overlaps
+                                             )};
           
-          auto sensorPosition{detectorRotation * (sensorDisplacement + layerDisplacement + caloDisplacement + detectorDisplacement)};
+            auto sensorPosition{detectorRotation * (sensorDisplacement + layerDisplacement + caloDisplacement + detectorDisplacement)};
   
-          sensors_.emplace_back(id, sensorPV, absPV, sensorPosition, sensorEdge, layerDZSi[iDet]);
+            sensors_.emplace_back(id, sensorPV, absPV, sensorPosition, sensorEdge, layerDZSi[iDet]);
   
-          xleft += sensorEdge;
+            xleft += sensorEdge;
 
-          if (xleft + sensorEdge > caloSizeXY * 0.5)
+            if (xleft + sensorEdge > caloSizeXY * 0.5)
+              break;
+          }
+
+          ytop -= sensorEdge;
+
+          if (ytop < -caloSizeXY * 0.25)
+            sensorEdge = caloSizeXY / hgTiling;
+
+          if (ytop - sensorEdge < -caloSizeXY * 0.5)
             break;
         }
+      }
+      else if (geometryType_ == kMiniCalo) {
+	// LG  HG
+	// LG  LG
+	//
+	// LG: low granularity
+	// HG: high granularity
 
-        ytop -= sensorEdge;
+        enum Granularity {
+          LG,
+          HG
+        };
 
-        if (ytop < -caloSizeXY * 0.25)
-          sensorEdge = sensorEdgeSmall;
+        for (auto gran : {LG, HG}) {
+          G4double sensorEdge;
+          if (iDet == 0)
+            sensorEdge = caloSizeXY / hgTiling; // EE uses "HG"
+          else
+            sensorEdge = caloSizeXY / lgTiling;
 
-        if (ytop - sensorEdge < -caloSizeXY * 0.5)
-          break;
+          if (gran == LG)
+            sensorEdge *= 2.;
+
+          G4double ytop{caloSizeXY * 0.5};
+          while (true) {
+            G4double xleft;
+            if (gran == LG)
+              xleft = -caloSizeXY * 0.5;
+            else
+              xleft = 0.;
+
+            while (true) {
+              auto id{sensors_.size()};
+
+              auto xpos{xleft + sensorEdge * 0.5};
+              auto ypos{ytop - sensorEdge * 0.5};
+
+              // absorber
+              G4String absName{"Absorber_" + std::to_string(id)};
+              auto* absSolid{new G4Box(absName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZAbs[iDet] * 0.5)};
+              auto* absLV{new G4LogicalVolume(absSolid, absMaterial[iDet], absName)};
+              auto* absPV{new G4PVPlacement(
+                                            nullptr,
+                                            G4ThreeVector(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] * 0.5),
+                                            absLV, // logical volume
+                                            absName, // name
+                                            layerLV, // its mother volume
+                                            false, // pMany
+                                            0, // copy number
+                                            checkOverlaps_ // checking overlaps
+                                            )};
+
+              // sensor
+              G4String sensorName{"Sensor_" + std::to_string(id)};
+              G4ThreeVector sensorDisplacement(xpos, ypos, -layerDZ * 0.5 + layerDZAbs[iDet] + layerDZSi[iDet] * 0.5);
+              auto* sensorSolid{new G4Box(sensorName, sensorEdge * 0.5, sensorEdge * 0.5, layerDZSi[iDet] * 0.5)};
+              auto* sensorLV{new G4LogicalVolume(sensorSolid, sensorMaterial, sensorName)};
+              auto* sensorPV{new G4PVPlacement(
+                                               nullptr,
+                                               sensorDisplacement,
+                                               sensorLV, // logical volume
+                                               sensorName, // name
+                                               layerLV, // its mother volume
+                                               false, // pMany
+                                               0, // copy number
+                                               checkOverlaps_ // checking overlaps
+                                               )};
+          
+              auto sensorPosition{detectorRotation * (sensorDisplacement + layerDisplacement + caloDisplacement + detectorDisplacement)};
+  
+              sensors_.emplace_back(id, sensorPV, absPV, sensorPosition, sensorEdge, layerDZSi[iDet]);
+  
+              xleft += sensorEdge;
+
+              if (gran == LG) {
+                if (ytop > 0.) {
+                  if (xleft + sensorEdge > 0.)
+                    break;
+                }
+                else {
+                  if (xleft + sensorEdge > caloSizeXY * 0.5)
+                    break;
+                }
+              }
+              else {
+                if (xleft + sensorEdge > caloSizeXY * 0.5)
+                  break;
+              }
+            }
+
+            ytop -= sensorEdge;
+
+            if (gran == LG) {
+              if (ytop - sensorEdge < -caloSizeXY * 0.5)
+                break;
+            }
+            else {
+              if (ytop - sensorEdge < 0.)
+                break;
+            }
+          }
+        }
       }
 
       layerZ += layerDZ;

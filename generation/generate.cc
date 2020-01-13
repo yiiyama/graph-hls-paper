@@ -144,6 +144,7 @@ main(int argc, char** argv)
 
   auto* dc{new B4DetectorConstruction()};
   dc->setCheckOverlaps(false);
+  dc->setGeometryType(B4DetectorConstruction::kMiniCalo);
   runManager->SetUserInitialization(dc);
 
   runManager->SetUserInitialization(new FTFP_BERT);

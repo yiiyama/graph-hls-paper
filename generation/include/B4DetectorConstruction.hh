@@ -33,16 +33,23 @@ public:
   B4DetectorConstruction();
   ~B4DetectorConstruction();
 
-public:
   G4VPhysicalVolume* Construct() override;
   void ConstructSDandField() override;
 
+  enum GeometryType {
+    kHGCALish,
+    kMiniCalo,
+    nGeometryTypes
+  };
+
   SensorDescriptions const& getSensors() const { return sensors_; }
   void setCheckOverlaps(bool check) { checkOverlaps_ = check; }
-     
+  void setGeometryType(unsigned t) { geometryType_ = t; }
+    
 private:
   SensorDescriptions sensors_{};
   bool checkOverlaps_{true};
+  unsigned geometryType_{kHGCALish};
 
   G4VisAttributes* layerVisualization[2]{};
   G4VisAttributes* sensorVisualization{};

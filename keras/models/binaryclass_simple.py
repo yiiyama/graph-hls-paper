@@ -2,7 +2,7 @@ import keras
 from layers.simple import GarNet
 
 n_vert = 256
-n_feat = 4
+n_feat = 6
 n_aggregators = 4
 n_filters = 4
 n_propagate = 4
