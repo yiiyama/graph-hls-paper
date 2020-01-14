@@ -1,7 +1,7 @@
 import random
 import h5py
 
-def make_generator(paths, batch_size):
+def make_generator(paths, batch_size, features=None):
     paths = list(paths)
 
     n_steps = 0
@@ -18,7 +18,11 @@ def make_generator(paths, batch_size):
                     start = 0
                     end = batch_size
                     while start < f['n'].shape[0] - 1:
-                        yield [f['x'][start:end], f['n'][start:end]], f['y'][start:end]
+                        if features is None:
+                            out_x = f['x'][start:end]
+                        else:
+                            out_x = f['x'][start:end, :, features]
+                        yield [out_x, f['n'][start:end]], f['y'][start:end]
 
                         start = end
                         end += batch_size

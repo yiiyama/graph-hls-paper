@@ -12,9 +12,9 @@ import sys
 import shutil
 import numpy as np
 import uproot
-import root_numpy as rnp
 
 n_vert = 256
+output_type = 'root'
 
 branches = [
     'cluster_pt',
@@ -67,16 +67,34 @@ y = egamma[event_filter]
 
 # Write to tree
 
-entries = np.empty((n.shape[0],), dtype=[('x', np.float32, (n_vert, 4)), ('n', np.int16), ('y', np.int8)])
-
-for ient, ent in enumerate(zip(x, n, y)):
-    entries[ient] = ent
-
 fname = os.path.basename(path)
 tmp_out = '%s/%s' % (os.getenv('TMPDIR', '/tmp'), fname)
 
-rnp.array2root(entries, tmp_out)
+if output_type == 'root':
+    import root_numpy as rnp
 
-out_path = '%s/%s' % (out_dir, fname)
+    entries = np.empty((n.shape[0],), dtype=[('x', np.float32, (n_vert, 4)), ('n', np.int16), ('y', np.int8)])
+    
+    for ient, ent in enumerate(zip(x, n, y)):
+        entries[ient] = ent
+    
+    rnp.array2root(entries, tmp_out)
+    
+    extension = '.root'
+
+elif output_type == 'h5':
+    import h5py
+
+    with h5py.File(tmp_out, 'w', libver='latest') as output:
+        out_clusters = output.create_dataset('x', (n.shape[0], n_vert, 4), compression='gzip', dtype='f')
+        out_size = output.create_dataset('n', (n.shape[0],), compression='gzip', dtype='i')
+        out_truth = output.create_dataset('y', (n.shape[0],), compression='gzip', dtype='i')
+        out_clusters.write_direct(x)
+        out_size.write_direct(n)
+        out_truth.write_direct(y)
+
+    extension = '.h5'
+
+out_path = '%s/%s' % (out_dir, fname[:fname.rfind('.')] + extension)
 if tmp_out != out_path:
     shutil.move(tmp_out, out_path)

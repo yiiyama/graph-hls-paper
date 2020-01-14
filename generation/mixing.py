@@ -10,7 +10,7 @@ from argparse import ArgumentParser
 
 arg_parser = ArgumentParser(description='Run simple jobs on condor')
 arg_parser.add_argument('--dataset', '-s', metavar='TYPE', dest='dataset_type', default='classification', help='Task type of the dataset (classification, clustering, regression(?)).')
-arg_parser.add_argument('--format', '-f', metavar='FORMAT', dest='output_format', default='rootfixed', help='Output file format (h5, rootfixed, rootsparse).')
+arg_parser.add_argument('--format', '-f', metavar='FORMAT', dest='output_format', default='root', help='Output file format (h5, root, root-sparse).')
 arg_parser.add_argument('--nevt', '-n', metavar='N', dest='nevt', default=1000, type=int, help='Number of events in one file.')
 arg_parser.add_argument('--nfile', '-m', metavar='N', dest='nfile', default=1, type=int, help='Number of files to produce.')
 arg_parser.add_argument('--first-file', '-i', metavar='N', dest='first_ifile', default=0, type=int, help='Index of the first output file.')
@@ -24,9 +24,9 @@ del sys.argv[1:]
 
 if args.output_format == 'h5':
     import h5py
-elif args.output_format == 'rootfixed':
+elif args.output_format == 'root':
     import root_numpy as rnp
-elif args.output_format == 'rootsparse':
+elif args.output_format == 'root-sparse':
     import ROOT
 
 with tempfile.NamedTemporaryFile(delete=False) as t:
@@ -85,6 +85,13 @@ if args.dataset_type == 'classification':
     cluster_radius = 6.4
 
     coords = np.stack((geom_data['x'], geom_data['y']), axis=-1)
+    geom_stack = np.stack((
+            geom_data['x'] / 18.,
+            geom_data['y'] / 18.,
+            (geom_data['z'] - 350.) / 120.,
+            #geom_data['dxy'] / 6.,
+            #geom_data['dz'] / 4.2
+    ), axis=-1)
 
     electrons = make_generator(ele_paths, ['recoEnergy'])()
     pions = make_generator(pi_paths, ['recoEnergy'])()
@@ -124,13 +131,9 @@ if args.dataset_type == 'classification':
         dr2 = np.sum(np.square(coords - seed_axis), axis=1)
         in_radius = np.asarray((dr2 < cluster_radius ** 2) & (event > 100.)).nonzero()
 
-        cluster_tmp = np.stack((
-            geom_data['x'] / 18.,
-            geom_data['y'] / 18.,
-            (geom_data['z'] - 350.) / 120.,
-            geom_data['dxy'] / 6.,
-            geom_data['dz'] / 4.2,
-            np.sqrt(event * 1.e-3)
+        cluster_tmp = np.concatenate((
+            geom_stack,
+            np.expand_dims(np.sqrt(event * 1.e-3), axis=-1)
         ), axis=-1)[in_radius]
 
         time_process += time.time() - t
@@ -145,11 +148,11 @@ if args.dataset_type == 'classification':
                 out_n = np.empty((args.nevt,), dtype=np.int16)
                 out_y = np.empty((args.nevt,), dtype=np.int8)
     
-            elif args.output_format == 'rootfixed':
+            elif args.output_format == 'root':
                 out_x = np.zeros((cluster_size_max, 6), dtype=np.float32)
                 out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, 6)), ('n', np.int16), ('y', np.int8)])
     
-            elif args.output_format == 'rootsparse':
+            elif args.output_format == 'root-sparse':
                 output = ROOT.TFile.Open(tmpname, 'recreate')
                 out_tree = ROOT.TTree('events', '')
                 out_x = np.empty((cluster_size_max, 6), dtype=np.float32)
@@ -173,11 +176,11 @@ if args.dataset_type == 'classification':
                     out_x[iev, :n] = cluster_tmp[:n]
                     out_n[iev] = n
                     out_y[iev] = ipart
-                elif args.output_format == 'rootfixed':
+                elif args.output_format == 'root':
                     out_x[:n] = cluster_tmp[:n]
                     out_x[n:] *= 0.
                     out_entries[iev] = (out_x, n, ipart)
-                elif args.output_format == 'rootsparse':
+                elif args.output_format == 'root-sparse':
                     out_x[:n] = cluster_tmp[:n]
                     out_n[0] = n
                     out_y[0] = ipart
@@ -209,11 +212,11 @@ if args.dataset_type == 'classification':
 
             extension = 'h5'
 
-        elif args.output_format == 'rootfixed':
+        elif args.output_format == 'root':
             rnp.array2root(out_entries, tmpname, treename='events', mode='recreate')
             extension = 'root'
 
-        elif args.output_format == 'rootsparse':
+        elif args.output_format == 'root-sparse':
             output.cd()
             out_tree.Write()
             output.Close()

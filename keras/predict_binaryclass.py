@@ -75,4 +75,3 @@ if __name__ == '__main__':
             in_file.write(' %d\n' % nval)
             truth_file.write('%d\n' % tval)
             out_file.write('%f\n' % pval)
-

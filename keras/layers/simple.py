@@ -6,7 +6,7 @@ import numpy as np
 DEBUG = False
 
 class GarNet(keras.layers.Layer):
-    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, **kwargs):
+    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, output_activation=None, **kwargs):
         super(GarNet, self).__init__(**kwargs)
 
         self.n_aggregators = n_aggregators
@@ -25,7 +25,7 @@ class GarNet(keras.layers.Layer):
 
         self.input_feature_transform = keras.layers.Dense(n_propagate, name=self.name+'/FLR')
         self.aggregator_distance = keras.layers.Dense(n_aggregators, name=self.name+'/S')
-        self.output_feature_transform = keras.layers.Dense(n_filters, name=self.name+'/Fout')
+        self.output_feature_transform = keras.layers.Dense(n_filters, activation=output_activation, name=self.name+'/Fout')
 
         self._sublayers = [self.input_feature_transform, self.aggregator_distance, self.output_feature_transform]
 

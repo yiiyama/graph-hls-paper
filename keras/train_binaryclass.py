@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import sys
 import keras
 
-import models.binaryclass_simple as modelmod
+from models.binaryclass_threelayers import make_model
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -14,24 +14,29 @@ if __name__ == '__main__':
     parser.add_argument('--train', '-t', metavar='PATH', dest='train_path', nargs='+', help='Training data file.')
     parser.add_argument('--validate', '-v', metavar='PATH', dest='validation_path', nargs='+', help='Validation data file.')
     parser.add_argument('--out', '-o', metavar='PATH', dest='out_path', help='Write HDf5 output to path.')
-    parser.add_argument('--ncpu', '-j', metavar='N', dest='ncpu', type=int, default=1, help='Write HDf5 output to path.')
+    parser.add_argument('--ngpu', '-j', metavar='N', dest='ngpu', type=int, default=1, help='Use N GPUs.')
     parser.add_argument('--batch-size', '-b', metavar='N', dest='batch_size', type=int, default=512, help='Batch size.')
     parser.add_argument('--num-epochs', '-e', metavar='N', dest='num_epochs', type=int, default=80, help='Number of epochs to train over.')
-    parser.add_argument('--sparse-input', '-S', action='store_true', dest='sparse_input', help='Input is variable length.')
     parser.add_argument('--input-type', '-i', metavar='TYPE', dest='input_type', default='h5', help='Input data format (h5, root, root-sparse).')
     parser.add_argument('--generator', '-g', action='store_true', dest='use_generator', help='Use a generator for input.')
 
     args = parser.parse_args()
     del sys.argv[1:]
 
-    model = modelmod.model
+    n_class = 2
+    n_vert_max = 256
+    #features = list(range(6))
+    #features = [0, 1, 2, 3]
+    features = None
+
+    model = make_model(n_vert_max, n_feat=4, n_class=n_class)
     model_single = model
-    if args.ncpu > 1:
-        model = keras.utils.multi_gpu_model(model_single, args.ncpu)
+    if args.ngpu > 1:
+        model = keras.utils.multi_gpu_model(model_single, args.ngpu)
     
     optimizer = keras.optimizers.Adam(lr=0.00005)
     
-    if modelmod.n_class == 2:
+    if n_class == 2:
         model.compile(optimizer=optimizer, loss='binary_crossentropy')
     else:
         model.compile(optimizer=optimizer, loss='categorical_crossentropy')
@@ -42,13 +47,15 @@ if __name__ == '__main__':
         elif args.input_type == 'root':
             from generators.uproot_fixed import make_generator
         elif args.input_type == 'root-sparse':
-            from generators.uproot_jagged import make_generator
+            import generators.uproot_jagged_keep as generator_mod
+            generator_mod.max_cluster_size = n_vert_max
+            make_generator = generator_mod.make_generator
 
-        train_gen, n_train_steps = make_generator(args.train_path, args.batch_size)
+        train_gen, n_train_steps = make_generator(args.train_path, args.batch_size, features=features)
         fit_kwargs = {'steps_per_epoch': n_train_steps, 'epochs': args.num_epochs}
 
         if args.validation_path:
-            valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size)
+            valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size, features=features)
             fit_kwargs['validation_data'] = valid_gen()
             fit_kwargs['validation_steps'] = n_valid_steps
 

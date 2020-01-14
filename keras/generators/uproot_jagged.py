@@ -3,7 +3,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 import uproot
 
-def make_generator(paths, batch_size, max_cluster_size):
+max_cluster_size = 256
+
+def make_generator(paths, batch_size, features=None):
     def get_event():
         for data in uproot.iterate(paths, 'events', ['n', 'x', 'y']):
             n = data['n']
@@ -18,7 +20,6 @@ def make_generator(paths, batch_size, max_cluster_size):
                 else:
                     this_batch_size = batch_size
 
-                ntotal = np.sum(n[start:end])
                 nfeat = x.content.shape[1]
 
                 v_x = np.zeros((this_batch_size, max_cluster_size, nfeat), dtype=np.float)
@@ -28,6 +29,9 @@ def make_generator(paths, batch_size, max_cluster_size):
                 cluster_indices = np.r_[tuple(np.s_[:x] for x in n[start:end])]
 
                 v_x[batch_indices, cluster_indices] = x[start:end].flatten()
+
+                if features is None:
+                    v_x = v_x[:, :, features]
 
                 yield [v_x, n[start:end]], y[start:end]
 
@@ -41,6 +45,6 @@ def make_generator(paths, batch_size, max_cluster_size):
 
 
 if __name__ == '__main__':
-    generator = make_generator('/tmp/yiiyama/test_0.root', 2, 256)()
+    generator = make_generator('/tmp/yiiyama/test_0.root', 2)()
 
     print(next(generator))
