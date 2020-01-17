@@ -1,9 +1,11 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import math
 import keras
 import keras.backend as K
 import numpy as np
 
-DEBUG = False
+from debug_flag import DEBUG
 
 class GarNet(keras.layers.Layer):
     def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, output_activation=None, **kwargs):

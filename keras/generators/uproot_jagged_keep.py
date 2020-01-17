@@ -3,6 +3,8 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 import uproot
 
+from .utils import to_dense
+
 max_cluster_size = 256
 
 def make_generator(paths, batch_size, features=None):
@@ -52,18 +54,12 @@ def make_generator(paths, batch_size, features=None):
             for i_step in range(n_steps):
                 start = batch_size * i_step
                 end = start + batch_size
-
-                batch_indices = np.repeat(np.arange(batch_size), n[start:end])
-                cluster_indices = np.r_[tuple(np.s_[:i] for i in n[start:end])]
+                n_x = np.sum(n[start:end])
 
                 v_x *= 0.
+                to_dense(n[start:end], xcont[xpos:xpos + n_x], x_dense=v_x, features=features)
 
-                if features is None:
-                    v_x[batch_indices, cluster_indices] = xcont[xpos:xpos + batch_indices.shape[0]]
-                else:
-                    v_x[batch_indices, cluster_indices] = x[xpos:xpos + batch_indices.shape[0], features]
-
-                xpos += batch_indices.shape[0]
+                xpos += n_x
 
                 yield [v_x, n[start:end]], y[start:end]
 

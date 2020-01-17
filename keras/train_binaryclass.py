@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import sys
 import keras
 
-from models.binaryclass_threelayers import make_model
+from models.binaryclass_simple import make_model
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
