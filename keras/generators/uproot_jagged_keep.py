@@ -5,27 +5,34 @@ import uproot
 
 from .utils import to_dense
 
-max_cluster_size = 256
-
-def make_generator(paths, batch_size, features=None):
+def make_generator(paths, batch_size, features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
     n_events = 0
-    for data in uproot.iterate(paths, 'events', ['n'], namedecode='ascii'):
+    for data in uproot.iterate(paths, dataset_name, ['n'], namedecode='ascii'):
         n_events += data['n'].shape[0]
 
     n_steps = n_events // batch_size
 
     n = np.empty((n_events,), dtype=np.int)
-    y = np.empty((n_events,), dtype=np.int)
+    if y_shape is None:
+        shape = (n_events,)
+    elif type(y_shape) is tuple:
+        shape = (n_events,) + y_shape
+    else:
+        shape = (n_events, y_shape)
+    y = np.empty(shape, dtype=y_dtype)
 
     start = 0
-    for data in uproot.iterate(paths, 'events', ['n', 'y'], namedecode='ascii'):
+    for data in uproot.iterate(paths, dataset_name, ['n', 'y'], namedecode='ascii'):
         end = start + data['n'].shape[0]
         n[start:end] = data['n']
-        y[start:end] = data['y']
+        if type(y_shape) is not None: # figure out how to do this for tuple y_shape
+            y[start:end] = data['y'][:, y_features]
+        else:
+            y[start:end] = data['y']
         start = end
 
     if features is None:
-        for data in uproot.iterate(paths, 'events', ['x'], namedecode='ascii', entrysteps=1):
+        for data in uproot.iterate(paths, dataset_name, ['x'], namedecode='ascii', entrysteps=1):
             nfeat = data['x'].content.shape[1]
             break
     else:
@@ -36,7 +43,7 @@ def make_generator(paths, batch_size, features=None):
 
     cstart = 0
     istart = 0
-    for data in uproot.iterate(paths, 'events', ['x'], namedecode='ascii'):
+    for data in uproot.iterate(paths, dataset_name, ['x'], namedecode='ascii'):
         x = data['x'].content
         cend = cstart + x.shape[0]
         if features is None:
@@ -47,7 +54,7 @@ def make_generator(paths, batch_size, features=None):
         cstart = cend
 
     def get_event():
-        v_x = np.zeros((batch_size, max_cluster_size, nfeat), dtype=np.float)
+        v_x = np.zeros((batch_size, n_vert_max, nfeat), dtype=np.float)
 
         while True:
             xpos = 0
@@ -57,7 +64,7 @@ def make_generator(paths, batch_size, features=None):
                 n_x = np.sum(n[start:end])
 
                 v_x *= 0.
-                to_dense(n[start:end], xcont[xpos:xpos + n_x], x_dense=v_x, features=features)
+                to_dense(n[start:end], xcont[xpos:xpos + n_x], x_dense=v_x)
 
                 xpos += n_x
 
@@ -67,7 +74,11 @@ def make_generator(paths, batch_size, features=None):
 
 
 if __name__ == '__main__':
-    generator, n_steps = make_generator('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/mixed/classification_nopu/root-sparse/events_0.root', 2)
+    import sys
+
+    path = sys.argv[1]
+
+    generator, n_steps = make_generator(path, 2, n_vert_max=1024, y_shape=1, y_features=[0])
 
     print(n_steps, 'steps')
     print(next(generator()))

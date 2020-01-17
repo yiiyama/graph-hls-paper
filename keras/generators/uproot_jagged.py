@@ -3,11 +3,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 import uproot
 
-max_cluster_size = 256
-
-def make_generator(paths, batch_size, features=None):
+def make_generator(paths, batch_size, features=None, n_vert_max=256, y_shape=None, dataset_name='events'):
     def get_event():
-        for data in uproot.iterate(paths, 'events', ['n', 'x', 'y']):
+        for data in uproot.iterate(paths, dataset_name, ['n', 'x', 'y']):
             n = data['n']
             x = data['x']
             y = data['y']
@@ -22,7 +20,7 @@ def make_generator(paths, batch_size, features=None):
 
                 nfeat = x.content.shape[1]
 
-                v_x = np.zeros((this_batch_size, max_cluster_size, nfeat), dtype=np.float)
+                v_x = np.zeros((this_batch_size, n_vert_max, nfeat), dtype=np.float)
 
                 batch_indices = np.repeat(np.arange(this_batch_size), n[start:end])
 

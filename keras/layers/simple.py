@@ -82,7 +82,7 @@ class GarNet(keras.layers.Layer):
             if DEBUG:
                 distance = K.print_tensor(distance, message='rounded distance is ', summarize=-1)
 
-        edge_weights = vertex_mask * K.exp(distance * (-math.log(2.))) # (B, V, S)
+        edge_weights = vertex_mask * K.exp(K.square(distance) * (-math.log(2.))) # (B, V, S)
         
         if DEBUG:
             edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=-1)

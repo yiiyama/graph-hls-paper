@@ -4,8 +4,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import sys
 import keras
+import numpy as np
 
-from models.binaryclass_simple import make_model, make_loss
+from models.regression_simple import make_model, make_loss
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -24,20 +25,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
     del sys.argv[1:]
 
-    n_class = 2
-    n_vert_max = 256
-    #features = list(range(6))
-    #features = [0, 1, 2, 3]
+    n_vert_max = 1024
     features = None
+    y_shape = 1
 
-    model = make_model(n_vert_max, n_feat=4, n_class=n_class)
+    model = make_model(n_vert_max, n_feat=4)
     model_single = model
     if args.ngpu > 1:
         model = keras.utils.multi_gpu_model(model_single, args.ngpu)
     
     optimizer = keras.optimizers.Adam(lr=0.00005)
     
-    model.compile(optimizer=optimizer, loss=make_loss(n_class))
+    model.compile(optimizer=optimizer, loss=make_loss())
 
     if args.use_generator:
         if args.input_type == 'h5':
@@ -47,11 +46,11 @@ if __name__ == '__main__':
         elif args.input_type == 'root-sparse':
             from generators.uproot_jagged_keep import make_generator
 
-        train_gen, n_train_steps = make_generator(args.train_path, args.batch_size, features=features, n_vert_max=n_vert_max, dataset_name=args.input_name)
+        train_gen, n_train_steps = make_generator(args.train_path, args.batch_size, features=features, n_vert_max=n_vert_max, y_shape=y_shape, y_dtype=np.float, y_features=[0], dataset_name=args.input_name)
         fit_kwargs = {'steps_per_epoch': n_train_steps, 'epochs': args.num_epochs}
 
         if args.validation_path:
-            valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size, features=features, n_vert_max=n_vert_max, dataset_name=args.input_name)
+            valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size, features=features, n_vert_max=n_vert_max, y_shape=y_shape, y_dtype=np.float, y_features=[0], dataset_name=args.input_name)
             fit_kwargs['validation_data'] = valid_gen()
             fit_kwargs['validation_steps'] = n_valid_steps
 

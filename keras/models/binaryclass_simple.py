@@ -20,6 +20,12 @@ def make_model(n_vert, n_feat, n_class=2):
     
     return keras.Model(inputs=inputs, outputs=outputs)
 
+def make_loss(n_class=2):
+    if n_class == 2:
+        return 'binary_crossentropy'
+    else:
+        return 'categorical_crossentropy'
+
 
 if __name__ == '__main__':
     import sys

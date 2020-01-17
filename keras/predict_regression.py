@@ -6,7 +6,7 @@ import os
 import sys
 import numpy as np
 
-from models.binaryclass_simple import make_model
+from models.regression_simple import make_model
 import debug_flag
 
 if __name__ == '__main__':
@@ -19,21 +19,19 @@ if __name__ == '__main__':
     parser.add_argument('--nsamples', '-n', metavar='N', dest='n_sample', type=int, default=10000, help='Number of samples to process.')
     parser.add_argument('--root-out', '-r', metavar='PATH', dest='root_out_path', help='Write prediction results to a ROOT file.')
     parser.add_argument('--ascii-out', '-a', metavar='PATH', dest='ascii_out_dir', help='Write prediction results to ASCII files in a directory.')
+    parser.add_argument('--input-name', '-m', metavar='NAME', dest='input_name', default='events', help='Input dataset (TTree or HDF5 dataset) name.')
 
     args = parser.parse_args()
     del sys.argv[1:]
 
-    n_class = 2
-    n_vert_max = 256
-    #features = list(range(6))
-    #features = [0, 1, 2, 3]
+    n_vert_max = 1024
     features = None
-    n_feat = 4
+    y_shape = 1
 
     # Set to True to get printouts
     debug_flag.DEBUG = False
 
-    model = make_model(n_vert_max, n_feat=n_feat, n_class=n_class)
+    model = make_model(n_vert_max, n_feat=4)
 
     model.load_weights(args.weights_path)
 
@@ -41,53 +39,47 @@ if __name__ == '__main__':
         import h5py
 
         data = h5py.File(args.data_path)
+        x = data['x']
+        n = data['n']
+        y = data['y']
 
     elif args.input_type == 'root':
         import uproot
 
-        data = uproot.open(args.data_path)['events'].arrays(['x', 'n', 'y'], namedecode='ascii')
+        data = uproot.open(args.data_path)[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
+        x = data['x']
+        n = data['n']
+        y = data['y']
         
     elif args.input_type == 'root-sparse':
         import uproot
         from generators.utils import to_dense
 
-        data_tmp = uproot.open(args.data_path)['events'].arrays(['x', 'n', 'y'], namedecode='ascii')
-        data = {
-            'x': to_dense(data_tmp['n'], data_tmp['x'].content, n_vert_max, features=features),
-            'n': data_tmp['n'],
-            'y': data_tmp['y'],
-        }
+        data_tmp = uproot.open(args.data_path)[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
+        x = to_dense(data_tmp['n'], data_tmp['x'].content, n_vert_max=n_vert_max)
+        n = data_tmp['n']
+        y = data_tmp['y'][:, [0]]
 
     n_sample = args.n_sample
-    if n_sample < data['x'].shape[0]:
-        x = data['x'][:n_sample]
-        n = data['n'][:n_sample]
-        inputs = [x, n]
+    if n_sample < n.shape[0]:
+        x = x[:n_sample]
+        n = n[:n_sample]
     else:
-        n_sample = data['x'].shape[0]
-        inputs = [data['x'], data['n']]
+        n_sample = n.shape[0]
 
-    prob = model.predict(inputs, verbose=1)
+    inputs = [x, n]
 
-    if n_class == 2:
-        truth = data['y'][:n_sample]
-        prob = np.squeeze(prob)
-        print('accuracy', np.mean(np.asarray(np.asarray(prob > 0.5, dtype=np.int32) == truth, dtype=np.float32)))
-    else:
-        truth = np.argmax(data['y'][:n_sample], axis=1)
-        print('accuracy', np.mean(np.asarray(np.argmax(prob, axis=1) == truth, dtype=np.float32)))
+    pred = np.squeeze(model.predict(inputs, verbose=1))
+
+    truth = np.squeeze(y[:n_sample])
+    print('mean (E_reco - E_gen)^2 / E_gen =', np.mean(np.square(pred - truth) / truth))
     
     if args.root_out_path:
         import root_numpy as rnp
 
-        if n_class == 2:
-            prob_shape = ('prob', np.float32)
-        else:
-            prob_shape = ('prob', np.float32, (n_class,))
+        entries = np.empty((n_sample,), dtype=[('x', np.float32, x.shape[1:]), ('n', np.int32), ('pred', np.float32), ('truth', np.float32)])
         
-        entries = np.empty((n_sample,), dtype=[('x', np.float32, x.shape[1:]), ('n', np.int32), prob_shape, ('truth', np.int32)])
-        
-        for ient, ent in enumerate(zip(x, n, prob, truth)):
+        for ient, ent in enumerate(zip(x, n, pred, truth)):
             entries[ient] = ent
 
         rnp.array2root(entries, args.root_out_path)
@@ -97,7 +89,7 @@ if __name__ == '__main__':
         out_file = open('%s/tb_output_predictions.dat' % args.ascii_out_dir, 'w')
         truth_file = open('%s/tb_input_truth.dat' % args.ascii_out_dir, 'w')
         
-        for iline, (xval, nval, pval, tval) in enumerate(zip(x, n, prob, truth)):
+        for iline, (xval, nval, pval, tval) in enumerate(zip(x, n, pred, truth)):
             in_file.write(' '.join('%f' % v for v in np.reshape(xval, (-1,))))
             in_file.write(' %d\n' % nval)
             truth_file.write('%d\n' % tval)
