@@ -6,6 +6,10 @@ import sys
 import keras
 import numpy as np
 
+import debug_flag
+# Set to True to get printouts
+debug_flag.DEBUG = False
+
 from models.regression_simple import make_model, make_loss
 
 if __name__ == '__main__':
@@ -82,6 +86,29 @@ if __name__ == '__main__':
                 data = uproot.open(args.validation_path[0])['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
                 val_inputs = [data['x'], data['n']]
                 val_truth = data['y']
+
+            shuffle = True
+
+        elif args.input_type == 'root-sparse':
+            import uproot
+            from generators.utils import to_dense
+    
+            data = uproot.open(args.train_path[0])[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
+            inputs = [to_dense(data['n'], data['x'].content, n_vert_max=n_vert_max), data['n'][:]]
+            truth = data['y'][:, [0]]
+
+            if args.validation_path:
+                data = uproot.open(args.validation_path[0])[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
+                val_inputs = [to_dense(data['n'], data['x'].content, n_vert_max=n_vert_max), data['n']]
+                val_truth = data['y'][:, [0]]
+
+            shuffle = True
+
+        elif args.input_type == 'random':
+            inputs = [np.random.random((args.batch_size, n_vert_max, 4)), np.random.randint(n_vert_max, size=(args.batch_size,))]
+            truth = np.random.random((args.batch_size, 1))
+            val_inputs = [np.random.random((args.batch_size, n_vert_max, 4)), np.random.randint(n_vert_max, size=(args.batch_size,))]
+            val_truth = np.random.random((args.batch_size, 1))
 
             shuffle = True
 

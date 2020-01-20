@@ -52,6 +52,7 @@ class GarNet(keras.layers.Layer):
             data = x
 
             vertex_mask = K.cast(K.not_equal(data[..., 3:4], 0.), 'float32')
+            num_vertex = K.sum(vertex_mask)
 
         else:
             data, num_vertex = x
@@ -64,8 +65,8 @@ class GarNet(keras.layers.Layer):
             B = data_shape[0]
             V = data_shape[1]
             vertex_indices = K.tile(K.expand_dims(K.arange(0, V), axis=0), (B, 1)) # (B, [0..V-1])
-            num_vertex = K.cast(num_vertex, 'int32')
-            vertex_mask = K.expand_dims(K.cast(K.less(vertex_indices, num_vertex), 'float32'), axis=-1) # (B, V, 1)
+            vertex_mask = K.expand_dims(K.cast(K.less(vertex_indices, K.cast(num_vertex, 'int32')), 'float32'), axis=-1) # (B, V, 1)
+            num_vertex = K.cast(num_vertex, 'float32')
 
         if DEBUG:
             vertex_mask = K.print_tensor(vertex_mask, message='vertex_mask is ', summarize=-1)
@@ -87,9 +88,16 @@ class GarNet(keras.layers.Layer):
         if DEBUG:
             edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=-1)
 
+        def graph_mean(out, axis):
+            s = K.sum(out, axis=axis)
+            # reshape just to enable broadcasting
+            s = K.reshape(s, (-1, self.n_aggregators * self.n_propagate)) / num_vertex
+            s = K.reshape(s, (-1, self.n_aggregators, self.n_propagate))
+            return s
+
         # vertices -> aggregators
         edge_weights_trans = K.permute_dimensions(edge_weights, (0, 2, 1)) # (B, S, V)
-        aggregated = self._apply_edge_weights(features, edge_weights_trans, aggregation=K.mean) # (B, S, F)
+        aggregated = self._apply_edge_weights(features, edge_weights_trans, aggregation=graph_mean) # (B, S, F)
 
         if DEBUG:
             aggregated = K.print_tensor(aggregated, message='aggregated is ', summarize=-1)
@@ -103,9 +111,9 @@ class GarNet(keras.layers.Layer):
         output = vertex_mask * self.output_feature_transform(updated_features)
 
         if self.collapse == 'mean':
-            output = K.mean(output, axis=1)
-        elif self.collapse == 'sum':
-            output = K.sum(output, axis=1)
+            output = K.sum(output, axis=1) / num_vertex
+        elif self.collapse == 'sum': 
+           output = K.sum(output, axis=1)
         elif self.collapse == 'max':
             output = K.max(output, axis=1)
 
