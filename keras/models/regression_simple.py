@@ -12,11 +12,18 @@ def make_model(n_vert, n_feat):
     x = keras.layers.Input(shape=(n_vert, n_feat))
     n = keras.layers.Input(shape=(1,), dtype='int32')
     inputs = [x, n]
-    
-    v = inputs
-    v = GarNet(n_aggregators, n_filters, n_propagate, collapse='mean', deduce_nvert=False, name='gar_1')(v)
-    v = keras.layers.Dense(4, activation='tanh')(v)
-    v = keras.layers.Dense(1)(v)
+
+    #v = keras.layers.Conv1D(8, 1, activation=None, input_shape=(n_vert, n_feat))(x)
+    #v = keras.layers.Dense(8, activation='relu')(x)
+    v = x
+    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_1')([v, n])
+    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_2')([v, n])
+    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_3')([v, n])
+    v = GarNet(4, 4, 4, collapse='mean', deduce_nvert=False, name='gar_4')([v, n])
+    v = keras.layers.GlobalAveragePooling1D()(v)
+    v = keras.layers.Dense(8, activation='relu')(v)
+    v = keras.layers.Dense(4, activation='relu')(v)
+    v = keras.layers.Dense(1, kernel_initializer='ones')(v)
     outputs = v
     
     return keras.Model(inputs=inputs, outputs=outputs)
@@ -26,9 +33,8 @@ def make_loss():
         with K.name_scope('regression_loss'):
             if not K.is_tensor(y_pred):
                 y_pred = K.constant(y_pred)
-    
-            y_true = K.cast(y_true, y_pred.dtype)
-            return K.square(y_true - y_pred) / y_true
+
+            return K.mean(K.square(y_true - y_pred) / y_true, axis=-1)
 
     return loss
 

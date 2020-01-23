@@ -6,8 +6,11 @@ import os
 import sys
 import numpy as np
 
-from models.regression_simple import make_model
 import debug_flag
+# Set to True to get printouts
+debug_flag.DEBUG = False
+
+from models.regression_simple import make_model
 
 if __name__ == '__main__':
     from argparse import ArgumentParser
@@ -27,9 +30,6 @@ if __name__ == '__main__':
     n_vert_max = 1024
     features = None
     y_shape = 1
-
-    # Set to True to get printouts
-    debug_flag.DEBUG = False
 
     model = make_model(n_vert_max, n_feat=4)
 

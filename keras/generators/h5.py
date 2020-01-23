@@ -23,4 +23,4 @@ def make_generator(paths, batch_size, features=None, n_vert_max=256, y_shape=Non
                         start = end
                         end += batch_size
 
-    return get_event, n_steps
+    return get_event(), n_steps

@@ -52,10 +52,10 @@ if __name__ == '__main__':
 
         if args.validation_path:
             valid_gen, n_valid_steps = make_generator(args.validation_path, args.batch_size, features=features, n_vert_max=n_vert_max, dataset_name=args.input_name)
-            fit_kwargs['validation_data'] = valid_gen()
+            fit_kwargs['validation_data'] = valid_gen
             fit_kwargs['validation_steps'] = n_valid_steps
 
-        model.fit_generator(train_gen(), **fit_kwargs)
+        model.fit_generator(train_gen, **fit_kwargs)
 
     else:
         if args.input_type == 'h5':

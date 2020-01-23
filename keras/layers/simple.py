@@ -3,12 +3,11 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import math
 import keras
 import keras.backend as K
-import numpy as np
 
 from debug_flag import DEBUG
 
 class GarNet(keras.layers.Layer):
-    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, output_activation=None, **kwargs):
+    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
         super(GarNet, self).__init__(**kwargs)
 
         self.n_aggregators = n_aggregators
@@ -24,6 +23,7 @@ class GarNet(keras.layers.Layer):
 
         self.deduce_nvert = deduce_nvert
         self.discretize_distance = discretize_distance
+        self.mean_by_nvert = mean_by_nvert
 
         self.input_feature_transform = keras.layers.Dense(n_propagate, name=self.name+'/FLR')
         self.aggregator_distance = keras.layers.Dense(n_aggregators, name=self.name+'/S')
@@ -88,12 +88,15 @@ class GarNet(keras.layers.Layer):
         if DEBUG:
             edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=-1)
 
-        def graph_mean(out, axis):
-            s = K.sum(out, axis=axis)
-            # reshape just to enable broadcasting
-            s = K.reshape(s, (-1, self.n_aggregators * self.n_propagate)) / num_vertex
-            s = K.reshape(s, (-1, self.n_aggregators, self.n_propagate))
-            return s
+        if self.mean_by_nvert:
+            def graph_mean(out, axis):
+                s = K.sum(out, axis=axis)
+                # reshape just to enable broadcasting
+                s = K.reshape(s, (-1, self.n_aggregators * self.n_propagate)) / num_vertex
+                s = K.reshape(s, (-1, self.n_aggregators, self.n_propagate))
+                return s
+        else:
+            graph_mean = K.mean
 
         # vertices -> aggregators
         edge_weights_trans = K.permute_dimensions(edge_weights, (0, 2, 1)) # (B, S, V)
@@ -111,7 +114,10 @@ class GarNet(keras.layers.Layer):
         output = vertex_mask * self.output_feature_transform(updated_features)
 
         if self.collapse == 'mean':
-            output = K.sum(output, axis=1) / num_vertex
+            if self.mean_by_nvert:
+                output = K.sum(output, axis=1) / num_vertex
+            else:
+                output = K.mean(output, axis=1)
         elif self.collapse == 'sum': 
            output = K.sum(output, axis=1)
         elif self.collapse == 'max':
@@ -141,7 +147,8 @@ class GarNet(keras.layers.Layer):
             'n_propagate': self.n_propagate,
             'collapse': self.collapse,
             'deduce_nvert': self.deduce_nvert,
-            'discretize_distance': self.discretize_distance
+            'discretize_distance': self.discretize_distance,
+            'mean_by_nvert': self.mean_by_nvert
         })
 
         return config

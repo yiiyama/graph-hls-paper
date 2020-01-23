@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import sys
 import glob
@@ -43,7 +45,7 @@ geom_data['dz'] = np.where(geom_data['z'] < 350. + 0.6 * 25, 0.6, 4.2)
 
 ele_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/electron_10_100/*/events_*.root')
 pi_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/pioncharged_10_100/*/events_*.root')
-if args.add_pu:
+if args.dataset_type != 'classification' or args.add_pu:
     pu_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/pileup_0_0/*/events_*.root')
 
 if args.write_processed:
@@ -67,7 +69,7 @@ if args.skip_processed:
         paths.extend(paths_tmp)
 
 processed_paths_list = []
-def make_generator(paths, branches):
+def make_generator(paths, branches, report_ievt=False):
     def get_event():
         current_path = ''
         for path, data in uproot.iterate(paths, 'events', branches, reportpath=True):
@@ -76,12 +78,73 @@ def make_generator(paths, branches):
                 processed_paths_list.append(path)
 
             for ievt in range(data[branches[0]].shape[0]):
+                if report_ievt:
+                    print path, ievt
                 yield tuple(data[b][ievt] for b in branches)
 
     return get_event
 
+time_read = 0.
+time_process = 0.
+time_write = 0.
+
 if args.dataset_type == 'classification':
     cluster_size_max = 256
+    nfeat = 4
+
+    if args.output_format == 'h5':
+        def make_new_output():
+            out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((args.nevt,), dtype=np.int16)
+            out_y = np.empty((args.nevt,), dtype=np.int8)
+
+            return out_x, out_n, out_y
+
+        def fill_event(x, y, n, out_x, out_n, out_y):
+            out_x[iev, :n] = x[:n]
+            out_n[iev] = n
+            out_y[iev] = y
+
+        def write_h5(output):
+            chunk_size = min(args.nevt, 1024)
+            out_clusters = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
+            out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth = output.create_dataset('y', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_clusters.write_direct(out_x)
+            out_size.write_direct(out_n)
+            out_truth.write_direct(out_y)
+
+    elif args.output_format == 'root':
+        def make_new_output():
+            out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.int8)])
+
+            return out_x, out_entries
+
+        def fill_event(x, y, n, out_x, out_entries):
+            out_x[:n] = x[:n]
+            out_x[n:] *= 0.
+            out_entries[iev] = (out_x, n, y)
+
+    elif args.output_format == 'root-sparse':
+        def make_new_output():
+            output = ROOT.TFile.Open(tmpname, 'recreate')
+            out_tree = ROOT.TTree('events', '')
+            out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((1,), dtype=np.int32)
+            out_y = np.empty((1,), dtype=np.int32)
+            out_tree.Branch('n', out_n, 'n/I')
+            out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
+            out_tree.Branch('y', out_y, 'y/I')
+
+            return out_x, out_n, out_y, out_tree, output
+
+        def fill_event(x, y, n, out_x, out_n, out_y, out_tree, output):
+            out_x[:n] = x[:n]
+            out_n[0] = n
+            out_y[0] = y
+            out_tree.Fill()
+
     cluster_radius = 6.4
 
     coords = np.stack((geom_data['x'], geom_data['y']), axis=-1)
@@ -98,11 +161,7 @@ if args.dataset_type == 'classification':
     if args.add_pu:
         pus = make_generator(pu_paths, ['recoEnergy'])()
 
-    time_read = 0.
-    time_process = 0.
-    time_write = 0.
-
-    def make_cluster(ipart):
+    def make_event(ipart):
         global time_read
         global time_process
 
@@ -131,101 +190,295 @@ if args.dataset_type == 'classification':
         dr2 = np.sum(np.square(coords - seed_axis), axis=1)
         in_radius = np.asarray((dr2 < cluster_radius ** 2) & (event > 100.)).nonzero()
 
-        cluster_tmp = np.concatenate((
+        x = np.concatenate((
             geom_stack,
             np.expand_dims(np.sqrt(event * 1.e-3), axis=-1)
         ), axis=-1)[in_radius]
 
         time_process += time.time() - t
 
-        return cluster_tmp
+        return x, ipart
 
-    ifile = 0
-    while ifile != args.nfile:
-        try:
-            if args.output_format == 'h5':
-                out_x = np.empty((args.nevt, cluster_size_max, 6), dtype=np.float32)
-                out_n = np.empty((args.nevt,), dtype=np.int16)
-                out_y = np.empty((args.nevt,), dtype=np.int8)
-    
-            elif args.output_format == 'root':
-                out_x = np.zeros((cluster_size_max, 6), dtype=np.float32)
-                out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, 6)), ('n', np.int16), ('y', np.int8)])
-    
-            elif args.output_format == 'root-sparse':
-                output = ROOT.TFile.Open(tmpname, 'recreate')
-                out_tree = ROOT.TTree('events', '')
-                out_x = np.empty((cluster_size_max, 6), dtype=np.float32)
-                out_n = np.empty((1,), dtype=np.int32)
-                out_y = np.empty((1,), dtype=np.int32)
-                out_tree.Branch('n', out_n, 'n/I')
-                out_tree.Branch('x', out_x, 'x[n][6]/F')
-                out_tree.Branch('y', out_y, 'y/I')
-    
-            for iev, ipart in enumerate(np.random.randint(0, 2, args.nevt)):
-                cluster_tmp = make_cluster(ipart)
+elif args.dataset_type == 'clustering':
+    cluster_size_max = 1024
+    nfeat = 4
 
-                n = cluster_tmp.shape[0]
-                if n > cluster_size_max:
-                    print 'large cluster: ', cluster_tmp.shape[0]
-                    n = cluster_size_max
+    if args.output_format == 'h5':
+        def make_new_output():
+            out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((args.nevt,), dtype=np.int16)
+            out_y = np.empty((args.nevt, cluster_size_max), dtype=np.float32)
 
-                t = time.time()
+            return out_x, out_n, out_y
+
+        def fill_event(x, y, n, out_x, out_n, out_y):
+            out_x[iev, :n] = x[:n]
+            out_n[iev] = n
+            out_y[iev, :n] = y[:n]
+
+        def write_h5(output, out_x, out_n, out_y):
+            chunk_size = min(args.nevt, 1024)
+            out_event = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
+            out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth = output.create_dataset('y', (args.nevt, cluster_size_max), chunks=(chunk_size, cluster_size_max), compression='gzip', dtype='f')
+            out_event.write_direct(out_x)
+            out_size.write_direct(out_n)
+            out_truth.write_direct(out_y)
+
+    elif args.output_format == 'root':
+        def make_new_output():
+            out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
+            out_y = np.zeros((cluster_size_max,), dtype=np.float32)
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', (cluster_size_max,), np.float32)])
+
+            return out_x, out_y, out_entries
+
+        def fill_event(x, y, n, out_x, out_y, out_entries):
+            out_x[:n] = x[:n]
+            out_x[n:] *= 0.
+            out_y[:n] = y[:n]
+            out_y[n:] *= 0.
+            out_entries[iev] = (out_x, n, out_y)
+
+    elif args.output_format == 'root-sparse':
+        def make_new_output():
+            output = ROOT.TFile.Open(tmpname, 'recreate')
+            out_tree = ROOT.TTree('events', '')
+            out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((1,), dtype=np.int16)
+            out_y = np.empty((cluster_size_max,), dtype=np.float32)
+            out_tree.Branch('n', out_n, 'n/S')
+            out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
+            out_tree.Branch('y', out_y, 'y[n]/F')
+
+            return out_x, out_n, out_y, out_tree, output
+
+        def fill_event(x, y, n, out_x, out_n, out_y, out_tree, output):
+            out_x[:n] = x[:n]
+            out_n[0] = n
+            out_y[:n] = y[:n]
+            out_tree.Fill()
+
+    coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z']), axis=-1)
+
+    electrons = make_generator(ele_paths, ['recoEnergy'])()
+    pions = make_generator(pi_paths, ['recoEnergy'])()
+    pus = make_generator(pu_paths, ['recoEnergy'])()
+
+    def make_event(ipart):
+        global time_read
+        global time_process
         
-                if args.output_format == 'h5':
-                    out_x[iev, :n] = cluster_tmp[:n]
-                    out_n[iev] = n
-                    out_y[iev] = ipart
-                elif args.output_format == 'root':
-                    out_x[:n] = cluster_tmp[:n]
-                    out_x[n:] *= 0.
-                    out_entries[iev] = (out_x, n, ipart)
-                elif args.output_format == 'root-sparse':
-                    out_x[:n] = cluster_tmp[:n]
-                    out_n[0] = n
-                    out_y[0] = ipart
-                    out_tree.Fill()
+        while True:
+            t = time.time()
+    
+            if ipart == 0:
+                prim, = next(electrons)
+            else:
+                prim, = next(pions)
+    
+            pu, = next(pus)
+    
+            time_read += time.time() - t
+    
+            t = time.time()
+    
+            event = prim + pu
+            above_threshold = np.asarray(event > 30.).nonzero()[0]
+    
+            event = event[above_threshold]
+            prim = prim[above_threshold]
+            fprim = prim / event
+    
+            iseed = np.argmax(event)
+            if fprim[iseed] < 0.5:
+                time_process += time.time() - t
+                continue
 
-                time_write += time.time() - t
+            dpos = coords[above_threshold] - coords[above_threshold[iseed]]
+            dpos[0] /= 18.
+            dpos[1] /= 18.
+            dpos[2] /= 120.
+    
+            x = np.concatenate((
+                dpos,
+                np.expand_dims(np.sqrt(event * 1.e-3), axis=-1)
+            ), axis=-1)
+    
+            time_process += time.time() - t
+    
+            return x, fprim
 
-        except StopIteration:
-            print 'Early stop due to input exhaustion.'
-            ifile = args.nfile - 1
 
-        if args.write_processed:
-            for path in processed_paths_list:
-                processed_paths.write(path + '\n')
+elif args.dataset_type == 'regression':
+    cluster_size_max = 1024
+    nfeat = 4
 
-            del processed_paths_list[:]
+    if args.output_format == 'h5':
+        def make_new_output():
+            out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((args.nevt,), dtype=np.int16)
+            out_y = np.empty((args.nevt, 3), dtype=np.float32)
 
-        t = time.time()
+            return out_x, out_n, out_y
 
-        if args.output_format == 'h5':
-            with h5py.File(tmpname, 'w', libver='latest') as output:
-                chunk_size = min(args.nevt, 1024)
-                out_clusters = output.create_dataset('x', (args.nevt, cluster_size_max, 6), chunks=(chunk_size, cluster_size_max, 6), compression='gzip', dtype='f')
-                out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
-                out_truth = output.create_dataset('y', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
-                out_clusters.write_direct(out_x)
-                out_size.write_direct(out_n)
-                out_truth.write_direct(out_y)
+        def fill_event(x, y, n, out_x, out_n, out_y):
+            out_x[iev, :n] = x[:n]
+            out_n[iev] = n
+            out_y[iev] = y
 
-            extension = 'h5'
+        def write_h5(output, out_x, out_n, out_y):
+            chunk_size = min(args.nevt, 1024)
+            out_event = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
+            out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth = output.create_dataset('y', (args.nevt, 3), chunks=(chunk_size, 3), compression='gzip', dtype='f')
+            out_event.write_direct(out_x)
+            out_size.write_direct(out_n)
+            out_truth.write_direct(out_y)
 
-        elif args.output_format == 'root':
-            rnp.array2root(out_entries, tmpname, treename='events', mode='recreate')
-            extension = 'root'
+    elif args.output_format == 'root':
+        def make_new_output():
+            out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', (3,), np.float32)])
 
-        elif args.output_format == 'root-sparse':
-            output.cd()
-            out_tree.Write()
-            output.Close()
-            extension = 'root'
+            return out_x, out_entries
 
-        shutil.move(tmpname, '%s_%d.%s' % (args.outname, ifile + args.first_ifile, extension))
+        def fill_event(x, y, n, out_x, out_entries):
+            out_x[:n] = x[:n]
+            out_x[n:] *= 0.
+            out_entries[iev] = (out_x, n, y)
 
-        time_write += time.time() - t
+    elif args.output_format == 'root-sparse':
+        def make_new_output():
+            output = ROOT.TFile.Open(tmpname, 'recreate')
+            out_tree = ROOT.TTree('events', '')
+            out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((1,), dtype=np.int16)
+            out_y = np.empty((3,), dtype=np.float32)
+            out_tree.Branch('n', out_n, 'n/S')
+            out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
+            out_tree.Branch('y', out_y, 'y[3]/F')
 
-        ifile += 1
+            return out_x, out_n, out_y, out_tree, output
 
-    print 'Read time:', time_read, 'Process time:', time_process, 'Write time:', time_write
+        def fill_event(x, y, n, out_x, out_n, out_y, out_tree, output):
+            out_x[:n] = x[:n]
+            out_n[0] = n
+            out_y[:] = y
+            out_tree.Fill()
+
+
+    coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z']), axis=-1)
+
+    electrons = make_generator(ele_paths, ['recoEnergy', 'genEnergy', 'genX', 'genY'])()
+    #pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy', 'genX', 'genY'])()
+    if args.add_pu:
+        pus = make_generator(pu_paths, ['recoEnergy'])()
+
+    def make_event(ipart):
+        global time_read
+        global time_process
+        
+        while True:
+            t = time.time()
+    
+            if ipart == 0:
+                prim, genE, genX, genY = next(electrons)
+            else:
+                #prim, genE, genX, genY = next(pions)
+                prim, genE, genX, genY = next(electrons)
+
+            time_read += time.time() - t
+    
+            t = time.time()
+
+            if (genE - np.sum(prim) * 1.e-3) / genE > 0.2:
+                print 'Skipping event because of large energy loss:', genE, '->', np.sum(prim) * 1.e-3
+                continue
+    
+            event = prim
+            if args.add_pu:
+                pu, = next(pus)
+                event += pu
+                
+            above_threshold = np.asarray(event > 30.).nonzero()[0]
+    
+            event = event[above_threshold]
+
+            iseed = np.argmax(event)
+            if prim[above_threshold[iseed]] / event[iseed] < 0.5:
+                time_process += time.time() - t
+                continue
+
+            dpos = coords[above_threshold] - coords[above_threshold[iseed]]
+            dpos[:, 0] /= 18.
+            dpos[:, 1] /= 18.
+            dpos[:, 2] /= 120.
+
+            x = np.concatenate((
+                dpos,
+                np.expand_dims(event * 1.e-3, axis=-1)
+            ), axis=-1)
+
+            y = np.stack((genE, genX, genY), axis=-1)
+
+            time_process += time.time() - t
+    
+            return x, y
+
+
+ifile = 0
+while ifile != args.nfile:
+    out = make_new_output()
+
+    try:
+        for iev, ipart in enumerate(np.random.randint(0, 2, args.nevt)):
+            x, y = make_event(ipart)
+
+            n = x.shape[0]
+            if n > cluster_size_max:
+                print 'large cluster: ', x.shape[0]
+                n = cluster_size_max
+
+            t = time.time()
+
+            fill_event(x, y, n, *out)
+    
+            time_write += time.time() - t
+
+    except StopIteration:
+        print 'Early stop due to input exhaustion.'
+        ifile = args.nfile - 1
+
+    if args.write_processed:
+        for path in processed_paths_list:
+            processed_paths.write(path + '\n')
+
+        del processed_paths_list[:]
+
+    t = time.time()
+
+    if args.output_format == 'h5':
+        with h5py.File(tmpname, 'w', libver='latest') as output:
+            write_h5(output, *out)
+
+        extension = 'h5'
+
+    elif args.output_format == 'root':
+        rnp.array2root(out_entries, tmpname, treename='events', mode='recreate')
+        extension = 'root'
+
+    elif args.output_format == 'root-sparse':
+        out_x, out_n, out_y, out_tree, output = out
+        output.cd()
+        out_tree.Write()
+        output.Close()
+        extension = 'root'
+
+    shutil.move(tmpname, '%s_%d.%s' % (args.outname, ifile + args.first_ifile, extension))
+
+    time_write += time.time() - t
+
+    ifile += 1
+
+print 'Read time:', time_read, 'Process time:', time_process, 'Write time:', time_write
