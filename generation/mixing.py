@@ -30,6 +30,7 @@ elif args.output_format == 'root':
     import root_numpy as rnp
 elif args.output_format == 'root-sparse':
     import ROOT
+    ROOT.gROOT.SetBatch(True)
 
 with tempfile.NamedTemporaryFile(delete=False) as t:
     tmpname = t.name
@@ -276,14 +277,18 @@ elif args.dataset_type == 'clustering':
                 prim, = next(electrons)
             else:
                 prim, = next(pions)
-    
-            pu, = next(pus)
+
+            if args.add_pu:
+                pu, = next(pus)
     
             time_read += time.time() - t
     
             t = time.time()
-    
-            event = prim + pu
+
+            event = prim
+            if args.add_pu:
+                event += pu
+                
             above_threshold = np.asarray(event > 30.).nonzero()[0]
     
             event = event[above_threshold]
@@ -388,6 +393,9 @@ elif args.dataset_type == 'regression':
                 #prim, genE, genX, genY = next(pions)
                 prim, genE, genX, genY = next(electrons)
 
+            if args.add_pu:
+                pu, = next(pus)
+
             time_read += time.time() - t
     
             t = time.time()
@@ -398,7 +406,6 @@ elif args.dataset_type == 'regression':
     
             event = prim
             if args.add_pu:
-                pu, = next(pus)
                 event += pu
                 
             above_threshold = np.asarray(event > 30.).nonzero()[0]

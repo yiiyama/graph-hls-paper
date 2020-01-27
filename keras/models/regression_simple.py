@@ -4,26 +4,29 @@ import keras
 import keras.backend as K
 from layers.simple import GarNet
 
+input_format = 'xn'
+
 def make_model(n_vert, n_feat):
     n_aggregators = 4
     n_filters = 4
     n_propagate = 4
     
-    x = keras.layers.Input(shape=(n_vert, n_feat))
-    n = keras.layers.Input(shape=(1,), dtype='int32')
-    inputs = [x, n]
+    if input_format == 'xn':
+        x = keras.layers.Input(shape=(n_vert, n_feat))
+    else:
+        x = keras.layers.Input(shape=(n_vert, n_feat - 1))
+        e = keras.layers.Input(shape=(n_vert,))
+    n = keras.layers.Input(shape=(1,), dtype='uint16')
+    if input_format == 'xn':
+        inputs = [x, n]
+    else:
+        inputs = [x, e, n]
 
-    #v = keras.layers.Conv1D(8, 1, activation=None, input_shape=(n_vert, n_feat))(x)
-    #v = keras.layers.Dense(8, activation='relu')(x)
-    v = x
-    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_1')([v, n])
-    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_2')([v, n])
-    v = GarNet(n_aggregators=4, n_filters=16, n_propagate=8, deduce_nvert=False, name='gar_3')([v, n])
-    v = GarNet(4, 4, 4, collapse='mean', deduce_nvert=False, name='gar_4')([v, n])
-    v = keras.layers.GlobalAveragePooling1D()(v)
+    v = inputs
+    v = GarNet(4, 4, 4, collapse='mean', input_format=input_format, name='gar_4')(v)
     v = keras.layers.Dense(8, activation='relu')(v)
-    v = keras.layers.Dense(4, activation='relu')(v)
-    v = keras.layers.Dense(1, kernel_initializer='ones')(v)
+    #v = keras.layers.Dense(4, activation='relu')(v)
+    v = keras.layers.Dense(1)(v)
     outputs = v
     
     return keras.Model(inputs=inputs, outputs=outputs)
@@ -33,6 +36,8 @@ def make_loss():
         with K.name_scope('regression_loss'):
             if not K.is_tensor(y_pred):
                 y_pred = K.constant(y_pred)
+
+            y_true /= 100. # because our data is max 100 GeV
 
             return K.mean(K.square(y_true - y_pred) / y_true, axis=-1)
 

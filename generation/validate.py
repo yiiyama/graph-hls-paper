@@ -4,15 +4,15 @@ import ROOT
 import root_numpy as rnp
 import uproot
 
-geom_tree = uproot.open('geom.root')['detector']
+geom_tree = uproot.open('geom50.root')['detector']
 geom_data = geom_tree.arrays(['x', 'y', 'z'])
 
 coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z']), axis=-1)
 
-data_blocks = uproot.iterate('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/electron_10_100_123456.root', 'events', ['genPid', 'genEnergy', 'genX', 'genY', 'recoEnergy'], entrysteps=128)
+data_blocks = uproot.iterate('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/pioncharged_10_100/65432/events_1.root', 'events', ['genPid', 'genEnergy', 'genX', 'genY', 'recoEnergy'], entrysteps=128)
 
 canvas = ROOT.TCanvas('c1', 'c1', 600, 600)
-hist = ROOT.TH3D('hist', '', 40, 350., 350. + 0.6 * 25 + 4.2 * 25, 40, -22., 22., 40, -22., 22.)
+hist = ROOT.TH3D('hist', '', 40, 350., 350. + 0.6 * 25 + 4.2 * 25, 40, -30., 30., 40, -30., 30.)
 hist.GetXaxis().SetTitle('Z')
 hist.GetYaxis().SetTitle('X')
 hist.GetZaxis().SetTitle('Y')

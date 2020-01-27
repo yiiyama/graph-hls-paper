@@ -7,7 +7,7 @@ import keras.backend as K
 from debug_flag import DEBUG
 
 class GarNet(keras.layers.Layer):
-    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, deduce_nvert=False, discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
+    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, input_format='xn', discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
         super(GarNet, self).__init__(**kwargs)
 
         self.n_aggregators = n_aggregators
@@ -21,7 +21,7 @@ class GarNet(keras.layers.Layer):
         else:
             raise NotImplementedError('Unsupported collapse operation')
 
-        self.deduce_nvert = deduce_nvert
+        self.input_format = input_format
         self.discretize_distance = discretize_distance
         self.mean_by_nvert = mean_by_nvert
 
@@ -34,10 +34,13 @@ class GarNet(keras.layers.Layer):
     def build(self, input_shape):
         super(GarNet, self).build(input_shape)
 
-        if self.deduce_nvert:
+        if self.input_format == 'x':
             data_shape = input_shape
-        else:
+        elif self.input_format == 'xn':
             data_shape, _ = input_shape
+        elif self.input_format == 'xen':
+            data_shape, _, _ = input_shape
+            data_shape = data_shape[:2] + (data_shape[2] + 1,)
 
         self.input_feature_transform.build(data_shape)
         self.aggregator_distance.build(data_shape)
@@ -48,14 +51,18 @@ class GarNet(keras.layers.Layer):
             self._non_trainable_weights.extend(layer.non_trainable_weights)
 
     def call(self, x):
-        if self.deduce_nvert:
+        if self.input_format == 'x':
             data = x
 
             vertex_mask = K.cast(K.not_equal(data[..., 3:4], 0.), 'float32')
             num_vertex = K.sum(vertex_mask)
 
-        else:
-            data, num_vertex = x
+        elif self.input_format in ['xn', 'xen']:
+            if self.input_format == 'xn':
+                data, num_vertex = x
+            else:
+                data_x, data_e, num_vertex = x
+                data = K.concatenate((data_x, K.reshape(data_e, (-1, data_e.shape[1], 1))), axis=-1)
     
             if DEBUG:
                 data = K.print_tensor(data, message='data is ', summarize=-1)
@@ -119,7 +126,7 @@ class GarNet(keras.layers.Layer):
             else:
                 output = K.mean(output, axis=1)
         elif self.collapse == 'sum': 
-           output = K.sum(output, axis=1)
+            output = K.sum(output, axis=1)
         elif self.collapse == 'max':
             output = K.max(output, axis=1)
 
@@ -129,13 +136,15 @@ class GarNet(keras.layers.Layer):
         return output
 
     def compute_output_shape(self, input_shape):
-        if self.deduce_nvert:
+        if self.input_format == 'x':
             data_shape = input_shape
-        else:
+        elif self.input_format == 'xn':
             data_shape, _ = input_shape
+        elif self.input_format == 'xen':
+            data_shape, _, _ = input_shape
 
         if self.collapse is None:
-            return data_shape[0:2] + (self.n_filters,)
+            return data_shape[:2] + (self.n_filters,)
         else:
             return (data_shape[0], self.n_filters)
 
@@ -146,7 +155,7 @@ class GarNet(keras.layers.Layer):
             'n_filters': self.n_filters,
             'n_propagate': self.n_propagate,
             'collapse': self.collapse,
-            'deduce_nvert': self.deduce_nvert,
+            'input_format': self.input_format,
             'discretize_distance': self.discretize_distance,
             'mean_by_nvert': self.mean_by_nvert
         })

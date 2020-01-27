@@ -4,14 +4,16 @@ import keras
 import numpy as np
 import uproot
 
-from .utils import to_dense
+from generators.utils import to_dense
 
 class UprootJaggedSequence(keras.utils.Sequence):
-    def __init__(self, paths, batch_size, features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
+    def __init__(self, paths, batch_size, format='xn', features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
         super(UprootJaggedSequence, self).__init__()
         
         self.batch_size = batch_size
         self.n_vert_max = n_vert_max
+
+        self.format = format
 
         n_events = 0
         for data in uproot.iterate(paths, dataset_name, ['n'], namedecode='ascii'):
@@ -74,7 +76,10 @@ class UprootJaggedSequence(keras.utils.Sequence):
         xend = self.xpos[index + 1]
         x = to_dense(nbatch, self.xcont[xstart:xend], n_vert_max=self.n_vert_max)
 
-        return [x, nbatch], self.y[start:end]
+        if self.format == 'xn':
+            return [x, nbatch], self.y[start:end]
+        elif self.format == 'xen':
+            return [x[:, :, :3], x[:, :, 3], nbatch], self.y[start:end]
 
     def set_xpos(self):
         xpos = 0
@@ -88,8 +93,8 @@ class UprootJaggedSequence(keras.utils.Sequence):
 
         
 
-def make_generator(paths, batch_size, features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
-    sequence = UprootJaggedSequence(paths, batch_size, features, n_vert_max, y_shape, y_dtype, y_features, dataset_name)
+def make_generator(paths, batch_size, format='xn', features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
+    sequence = UprootJaggedSequence(paths, batch_size, format, features, n_vert_max, y_shape, y_dtype, y_features, dataset_name)
 
     return sequence, None
 
@@ -99,7 +104,7 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
-    sequence, n_steps = make_generator(path, 1, features=[3], n_vert_max=1024, y_shape=1, y_features=[0])
+    sequence, n_steps = make_generator(path, 1, n_vert_max=1024, y_shape=1, y_features=[0])
 
     print(n_steps, 'steps')
     print(sequence[0])
