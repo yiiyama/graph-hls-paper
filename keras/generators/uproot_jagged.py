@@ -3,7 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import numpy as np
 import uproot
 
-def make_generator(paths, batch_size, features=None, n_vert_max=256, y_shape=None, dataset_name='events'):
+def make_generator(paths, batch_size, format='xn', features=None, n_vert_max=256, y_dtype=np.int, y_features=None, dataset_name='events'):
     def get_event():
         for data in uproot.iterate(paths, dataset_name, ['n', 'x', 'y']):
             n = data['n']

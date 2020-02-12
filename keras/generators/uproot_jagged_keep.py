@@ -7,7 +7,7 @@ import uproot
 from generators.utils import to_dense
 
 class UprootJaggedSequence(keras.utils.Sequence):
-    def __init__(self, paths, batch_size, format='xn', features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
+    def __init__(self, paths, batch_size, format='xn', features=None, n_vert_max=256, y_dtype=np.int, y_features=None, dataset_name='events'):
         super(UprootJaggedSequence, self).__init__()
         
         self.batch_size = batch_size
@@ -22,19 +22,19 @@ class UprootJaggedSequence(keras.utils.Sequence):
         self.n_steps = n_events // batch_size
     
         self.n = np.empty((n_events,), dtype=np.int)
-        if y_shape is None:
+
+        if y_features is None:
             shape = (n_events,)
-        elif type(y_shape) is tuple:
-            shape = (n_events,) + y_shape
         else:
-            shape = (n_events, y_shape)
+            shape = (n_events, len(y_features))
+
         self.y = np.empty(shape, dtype=y_dtype)
     
         start = 0
         for data in uproot.iterate(paths, dataset_name, ['n', 'y'], namedecode='ascii'):
             end = start + data['n'].shape[0]
             self.n[start:end] = data['n']
-            if y_shape is not None: # figure out how to do this for tuple y_shape
+            if y_features is not None:
                 self.y[start:end] = data['y'][:, y_features]
             else:
                 self.y[start:end] = data['y']
@@ -93,10 +93,44 @@ class UprootJaggedSequence(keras.utils.Sequence):
 
         
 
-def make_generator(paths, batch_size, format='xn', features=None, n_vert_max=256, y_shape=None, y_dtype=np.int, y_features=None, dataset_name='events'):
-    sequence = UprootJaggedSequence(paths, batch_size, format, features, n_vert_max, y_shape, y_dtype, y_features, dataset_name)
+def make_generator(paths, batch_size, format='xn', features=None, n_vert_max=256, y_dtype=np.int, y_features=None, dataset_name='events'):
+    sequence = UprootJaggedSequence(paths, batch_size, format, features, n_vert_max, y_dtype, y_features, dataset_name)
 
     return sequence, None
+
+
+def make_dataset(path, format='xn', features=None, n_vert_max=256, y_features=None, n_sample=None, dataset_name='events'):
+    data = uproot.open(path)[dataset_name].arrays(['x', 'n', 'y'], namedecode='ascii')
+
+    n = data['n']
+
+    x = to_dense(n, data['x'].content, n_vert_max=n_vert_max)
+    if features is not None:
+        x = x[:, features]
+
+    if format == 'xen':
+        e = x[:, :, 3]
+        x = x[:, :, :3]
+
+    if y_features is None:
+        y = data['y']
+    else:
+        y = data['y'][:, y_features]
+
+    if n_sample is not None:
+        x = x[:n_sample]
+        n = n[:n_sample]
+        y = y[:n_sample]
+        if format == 'xen':
+            e = e[:n_sample]
+
+    if format == 'xn':
+        inputs = [x, n]
+    elif format == 'xen':
+        inputs = [x, e, n]
+    truth = y
+
+    return inputs, truth, True
 
 
 if __name__ == '__main__':
@@ -104,7 +138,7 @@ if __name__ == '__main__':
 
     path = sys.argv[1]
 
-    sequence, n_steps = make_generator(path, 1, n_vert_max=1024, y_shape=1, y_features=[0])
+    sequence, n_steps = make_generator(path, 1, n_vert_max=1024, y_features=[0])
 
     print(n_steps, 'steps')
     print(sequence[0])

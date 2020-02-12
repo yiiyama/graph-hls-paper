@@ -5,6 +5,7 @@ import keras
 import keras.backend as K
 
 from debug_flag import DEBUG
+debug_summarize = None
 
 class GarNet(keras.layers.Layer):
     def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, input_format='xn', discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
@@ -65,8 +66,8 @@ class GarNet(keras.layers.Layer):
                 data = K.concatenate((data_x, K.reshape(data_e, (-1, data_e.shape[1], 1))), axis=-1)
     
             if DEBUG:
-                data = K.print_tensor(data, message='data is ', summarize=-1)
-                num_vertex = K.print_tensor(num_vertex, message='num_vertex is ', summarize=-1)
+                data = K.print_tensor(data, message='data is ', summarize=debug_summarize)
+                num_vertex = K.print_tensor(num_vertex, message='num_vertex is ', summarize=debug_summarize)
     
             data_shape = K.shape(data)
             B = data_shape[0]
@@ -76,24 +77,24 @@ class GarNet(keras.layers.Layer):
             num_vertex = K.cast(num_vertex, 'float32')
 
         if DEBUG:
-            vertex_mask = K.print_tensor(vertex_mask, message='vertex_mask is ', summarize=-1)
+            vertex_mask = K.print_tensor(vertex_mask, message='vertex_mask is ', summarize=debug_summarize)
 
         features = self.input_feature_transform(data) # (B, V, F)
         distance = self.aggregator_distance(data) # (B, V, S)
 
         if DEBUG:
-            features = K.print_tensor(features, message='features is ', summarize=-1)
-            distance = K.print_tensor(distance, message='distance is ', summarize=-1)
+            features = K.print_tensor(features, message='features is ', summarize=debug_summarize)
+            distance = K.print_tensor(distance, message='distance is ', summarize=debug_summarize)
 
         if self.discretize_distance:
             distance = K.round(distance)
             if DEBUG:
-                distance = K.print_tensor(distance, message='rounded distance is ', summarize=-1)
+                distance = K.print_tensor(distance, message='rounded distance is ', summarize=debug_summarize)
 
         edge_weights = vertex_mask * K.exp(K.square(distance) * (-math.log(2.))) # (B, V, S)
         
         if DEBUG:
-            edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=-1)
+            edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=debug_summarize)
 
         if self.mean_by_nvert:
             def graph_mean(out, axis):
@@ -110,13 +111,13 @@ class GarNet(keras.layers.Layer):
         aggregated = self._apply_edge_weights(features, edge_weights_trans, aggregation=graph_mean) # (B, S, F)
 
         if DEBUG:
-            aggregated = K.print_tensor(aggregated, message='aggregated is ', summarize=-1)
+            aggregated = K.print_tensor(aggregated, message='aggregated is ', summarize=debug_summarize)
 
         # aggregators -> vertices
         updated_features = self._apply_edge_weights(aggregated, edge_weights) # (B, V, S*F)
 
         if DEBUG:
-            updated_features = K.print_tensor(updated_features, message='updated_features is ', summarize=-1)
+            updated_features = K.print_tensor(updated_features, message='updated_features is ', summarize=debug_summarize)
 
         output = vertex_mask * self.output_feature_transform(updated_features)
 
@@ -131,7 +132,7 @@ class GarNet(keras.layers.Layer):
             output = K.max(output, axis=1)
 
         if DEBUG:
-            output = K.print_tensor(output, message='output is ', summarize=-1)
+            output = K.print_tensor(output, message='output is ', summarize=debug_summarize)
 
         return output
 
@@ -167,13 +168,13 @@ class GarNet(keras.layers.Layer):
         edge_weights = K.expand_dims(edge_weights, axis=3) # (B, u, v, 1)
 
         if DEBUG:
-            features = K.print_tensor(features, message='applying on features ', summarize=-1)
-            edge_weights = K.print_tensor(edge_weights, message='applying weights ', summarize=-1)
+            features = K.print_tensor(features, message='applying on features ', summarize=debug_summarize)
+            edge_weights = K.print_tensor(edge_weights, message='applying weights ', summarize=debug_summarize)
 
         out = edge_weights * features # (B, u, v, f)
 
         if DEBUG:
-            out = K.print_tensor(out, message='before aggregation ', summarize=-1)
+            out = K.print_tensor(out, message='before aggregation ', summarize=debug_summarize)
 
         if aggregation:
             out = aggregation(out, axis=2) # (B, u, f)

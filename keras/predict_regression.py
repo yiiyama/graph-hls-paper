@@ -29,89 +29,49 @@ if __name__ == '__main__':
 
     n_vert_max = 1024
     features = None
-    y_features = [0]
+    y_features = [3]
 
     n_feat = 4 if features is None else len(features)
-    y_shape = None if y_features is None else len(y_features)
 
     model = make_model(n_vert_max, n_feat=n_feat)
 
     model.load_weights(args.weights_path)
 
     if args.input_type == 'h5':
-        import h5py
-
-        data = h5py.File(args.data_path)
-
+        from generators.h5 import make_dataset
     elif args.input_type == 'root':
-        import uproot
-
-        data = uproot.open(args.data_path)[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
-        
+        from generators.uproot_fixed import make_dataset
     elif args.input_type == 'root-sparse':
-        import uproot
-        from generators.utils import to_dense
+        from generators.uproot_jagged_keep import make_dataset
 
-        data = uproot.open(args.data_path)[args.input_name].arrays(['x', 'n', 'y'], namedecode='ascii')
-        data['x'] = to_dense(data['n'], data['x'].content, n_vert_max=n_vert_max)
+    inputs, truth, _ = make_dataset(args.data_path, format=input_format, features=features, n_vert_max=n_vert_max, y_features=y_features, n_sample=args.n_sample, dataset_name=args.input_name)
 
-    if input_format == 'xn':
-        x = data['x']
-    else:
-        x = data['x'][:, :, :3]
-        e = data['x'][:, :, 3]
-    n = data['n']
-    y = data['y']
-
-    if features is not None:
-        x = x[:, :, features]
-
-    if y_features is not None:
-        y = y[:, y_features]
-
-    n_sample = args.n_sample
-    if n_sample < n.shape[0]:
-        x = x[:n_sample]
-        if input_format == 'xen':
-            e = e[:n_sample]
-        n = n[:n_sample]
-    else:
-        n_sample = n.shape[0]
-
-    if input_format == 'xn':
-        inputs = [x, n]
-    else:
-        inputs = [x, e, n]
+    n_sample = inputs[0].shape[0]
 
     pred = np.squeeze(model.predict(inputs, verbose=1))
 
-    truth = np.squeeze(y[:n_sample]) * 1.e-2
+    truth = np.squeeze(truth) * 1.e-2
     print('mean (E_reco - E_gen)^2 / E_gen =', np.mean(np.square((pred - truth) / truth)))
-
-    if input_format == 'xn':
-        entries = zip(x, n, pred, truth)
-    else:
-        entries = zip(x, e, n, pred, truth)
 
     if args.root_out_path:
         import root_numpy as rnp
 
-        dtype = [('x', np.float32, x.shape[1:]), ('n', np.int32), ('pred', np.float32), ('truth', np.float32)]
+        dtype = [('x', np.float32, (n_vert_max, n_feat)), ('n', np.int32), ('pred', np.float32), ('truth', np.float32)]
         if input_format == 'xen':
             dtype.insert(1, ('e', np.float32))
-        entries = np.empty((n_sample,), dtype=dtype)
+        array = np.empty((n_sample,), dtype=dtype)
         
-        for ient, ent in enumerate(entries):
-            entries[ient] = ent
+        for ient, ent in enumerate(zip(*(tuple(inputs) + (pred, truth)))):
+            array[ient] = ent
 
-        rnp.array2root(entries, args.root_out_path)
+        rnp.array2root(array, args.root_out_path, mode='recreate')
 
     if args.ascii_out_dir:
         in_file = open('%s/tb_input_features.dat' % args.ascii_out_dir, 'w')
         out_file = open('%s/tb_output_predictions.dat' % args.ascii_out_dir, 'w')
         truth_file = open('%s/tb_input_truth.dat' % args.ascii_out_dir, 'w')
 
-        for iline, entry in enumerate(entries):
+        for iline, entry in enumerate(zip(*(tuple(inputs) + (pred, truth)))):
             if input_format == 'xn':
                 x_val, n_val, p_val, t_val = entry
             else:

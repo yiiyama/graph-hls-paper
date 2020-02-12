@@ -4,6 +4,8 @@ import keras
 import keras.backend as K
 from layers.simple import GarNet
 
+from debug_flag import DEBUG
+
 input_format = 'xn'
 
 def make_model(n_vert, n_feat):
@@ -23,7 +25,12 @@ def make_model(n_vert, n_feat):
         inputs = [x, e, n]
 
     v = inputs
-    v = GarNet(4, 4, 4, collapse='mean', input_format=input_format, name='gar_4')(v)
+    v = GarNet(4, 8, 8, input_format=input_format, name='gar_1')(v)
+    v = GarNet(4, 8, 8, input_format=input_format, name='gar_2')([v, n])
+    v = GarNet(4, 8, 8, input_format=input_format, name='gar_3')([v, n])
+#    v = GarNet(4, 8, 8, input_format=input_format, name='gar_4')([v, n])
+#    v = GarNet(4, 8, 8, input_format=input_format, name='gar_5')([v, n])
+    v = GarNet(4, 8, 8, collapse='mean', input_format=input_format, name='gar_6')([v, n])
     v = keras.layers.Dense(8, activation='relu')(v)
     #v = keras.layers.Dense(4, activation='relu')(v)
     v = keras.layers.Dense(1)(v)
@@ -38,6 +45,10 @@ def make_loss():
                 y_pred = K.constant(y_pred)
 
             y_true /= 100. # because our data is max 100 GeV
+
+            if DEBUG:
+                y_pred = K.print_tensor(y_pred, message='pred')
+                y_true = K.print_tensor(y_true, message='true')
 
             return K.mean(K.square(y_true - y_pred) / y_true, axis=-1)
 

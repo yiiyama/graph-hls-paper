@@ -59,35 +59,17 @@ if __name__ == '__main__':
 
     else:
         if args.input_type == 'h5':
-            import h5py
-
-            ftrain = h5py.File(args.train_path[0])
-            inputs = [ftrain['x'], ftrain['n']]
-            truth = ftrain['y']
-           
-            if args.validation_path:
-                fvalid = h5py.File(args.validation_path[0])
-                val_inputs = [fvalid['x'], fvalid['n']]
-                val_truth = fvalid['y']
-
-            shuffle = 'batch'
-
+            from generators.h5 import make_dataset
         elif args.input_type == 'root':
-            import uproot
+            from generators.uproot_fixed import make_dataset
+        elif args.input_type == 'root-sparse':
+            from generators.uproot_jagged_keep import make_dataset
 
-            data = uproot.open(args.train_path[0])['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
-            inputs = [data['x'], data['n']]
-            truth = data['y']
-            
-            if args.validation_path:
-                data = uproot.open(args.validation_path[0])['tree'].arrays(['x', 'n', 'y'], namedecode='ascii')
-                val_inputs = [data['x'], data['n']]
-                val_truth = data['y']
-
-            shuffle = True
+        inputs, truth, shuffle = make_dataset(args.train_path[0], features=features, n_vert_max=n_vert_max, dataset_name=args.input_name)
 
         fit_kwargs = {'epochs': args.num_epochs, 'batch_size': args.batch_size, 'shuffle': shuffle}
         if args.validation_path:
+            val_inputs, val_truth, _ = make_dataset(args.validation_path[0], format=input_format, features=features, n_vert_max=n_vert_max, y_features=y_features, dataset_name=args.input_name)
             fit_kwargs['validation_data'] = (val_inputs, val_truth)
 
         model.fit(inputs, truth, **fit_kwargs)
