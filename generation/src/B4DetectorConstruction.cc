@@ -36,8 +36,12 @@ B4DetectorConstruction::Construct()
   constexpr G4double detectorFaceZ{3.5 * m};
 
   constexpr unsigned nLayers[2] = {25, 25};
-  constexpr G4double layerDZAbs[2] = {0.57 * cm, 4.17 * cm};
-  constexpr G4double layerDZSi[2] = {0.03 * cm, 0.03 * cm};
+  // depth 120 cm
+  // constexpr G4double layerDZAbs[2] = {0.57 * cm, 4.17 * cm};
+  // constexpr G4double layerDZSi[2] = {0.03 * cm, 0.03 * cm};
+  // depth 200 cm (with W absorber, corresponds to 10.7 lambda = total HGCAL)
+  constexpr G4double layerDZAbs[2] = {0.95 * cm, 6.95 * cm};
+  constexpr G4double layerDZSi[2] = {0.05 * cm, 0.05 * cm};
 
   constexpr G4double lgTiling{12}; // number of sensor tiling in one dimension in low-granularity region
   constexpr G4double hgTiling{16}; // number of sensor tiling in one dimension in high-granularity region
