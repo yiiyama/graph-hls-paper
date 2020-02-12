@@ -16,6 +16,7 @@ arg_parser.add_argument('--format', '-f', metavar='FORMAT', dest='output_format'
 arg_parser.add_argument('--nevt', '-n', metavar='N', dest='nevt', default=1000, type=int, help='Number of events in one file.')
 arg_parser.add_argument('--nfile', '-m', metavar='N', dest='nfile', default=1, type=int, help='Number of files to produce.')
 arg_parser.add_argument('--first-file', '-i', metavar='N', dest='first_ifile', default=0, type=int, help='Index of the first output file.')
+arg_parser.add_argument('--source', '-c', metavar='PATH', dest='source', default='/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated', help='Source directory of generated events file')
 arg_parser.add_argument('--out', '-o', metavar='PATH', dest='outname', default='mixing', help='Output file name without the serial number and extension.')
 arg_parser.add_argument('--write-processed', '-x', metavar='PATH', dest='write_processed', help='Write the paths of processed files to PATH.')
 arg_parser.add_argument('--skip-processed', '-y', metavar='PATH', dest='skip_processed', help='Skip input files listed in PATH.')
@@ -44,10 +45,10 @@ geom_data = uproot.open('geom.root')['detector'].arrays(['id', 'x', 'y', 'z', 'd
 # bugfix
 geom_data['dz'] = np.where(geom_data['z'] < 350. + 0.6 * 25, 0.6, 4.2)
 
-ele_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/electron_10_100/*/events_*.root')
-pi_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/pioncharged_10_100/*/events_*.root')
+ele_paths = glob.glob('%s/electron_10_100/*/events_*.root' % args.source)
+pi_paths = glob.glob('%s/pioncharged_10_100/*/events_*.root' % args.source)
 if args.dataset_type != 'classification' or args.add_pu:
-    pu_paths = glob.glob('/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/pileup_0_0/*/events_*.root')
+    pu_paths = glob.glob('%s/pileup_0_0/*/events_*.root' % args.source)
 
 if args.write_processed:
     processed_paths = open(args.write_processed, 'w')
@@ -118,14 +119,14 @@ if args.dataset_type == 'classification':
     elif args.output_format == 'root':
         def make_new_output():
             out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
-            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.int8)])
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.int8), ('e', np.float32)])
 
             return out_x, out_entries
 
-        def fill_event(x, y, n, out_x, out_entries):
+        def fill_event(x, y, n, e, out_x, out_entries):
             out_x[:n] = x[:n]
             out_x[n:] *= 0.
-            out_entries[iev] = (out_x, n, y)
+            out_entries[iev] = (out_x, n, y, e)
 
     elif args.output_format == 'root-sparse':
         def make_new_output():
@@ -134,16 +135,19 @@ if args.dataset_type == 'classification':
             out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
             out_n = np.empty((1,), dtype=np.int32)
             out_y = np.empty((1,), dtype=np.int32)
+            out_e = np.empty((1,), dtype=np.float32)
             out_tree.Branch('n', out_n, 'n/I')
             out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
             out_tree.Branch('y', out_y, 'y/I')
+            out_tree.Branch('e', out_e, 'e/F')
 
-            return out_x, out_n, out_y, out_tree, output
+            return out_x, out_n, out_y, out_e, out_tree, output
 
-        def fill_event(x, y, n, out_x, out_n, out_y, out_tree, output):
+        def fill_event(x, y, n, e, out_x, out_n, out_y, out_e, out_tree, output):
             out_x[:n] = x[:n]
             out_n[0] = n
             out_y[0] = y
+            out_e[0] = e
             out_tree.Fill()
 
     cluster_radius = 6.4
@@ -157,8 +161,8 @@ if args.dataset_type == 'classification':
             #geom_data['dz'] / 4.2
     ), axis=-1)
 
-    electrons = make_generator(ele_paths, ['recoEnergy'])()
-    pions = make_generator(pi_paths, ['recoEnergy'])()
+    electrons = make_generator(ele_paths, ['recoEnergy', 'genEnergy'])()
+    pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy'])()
     if args.add_pu:
         pus = make_generator(pu_paths, ['recoEnergy'])()
 
@@ -169,9 +173,9 @@ if args.dataset_type == 'classification':
         t = time.time()
 
         if ipart == 0:
-            prim, = next(electrons)
+            prim, energy = next(electrons)
         else:
-            prim, = next(pions)
+            prim, energy = next(pions)
 
         if args.add_pu:
             pu, = next(pus)
@@ -198,7 +202,7 @@ if args.dataset_type == 'classification':
 
         time_process += time.time() - t
 
-        return x, ipart
+        return x, ipart, energy
 
 elif args.dataset_type == 'clustering':
     cluster_size_max = 1024
@@ -318,12 +322,13 @@ elif args.dataset_type == 'clustering':
 elif args.dataset_type == 'regression':
     cluster_size_max = 1024
     nfeat = 4
+    ntruth = 4
 
     if args.output_format == 'h5':
         def make_new_output():
             out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
             out_n = np.empty((args.nevt,), dtype=np.int16)
-            out_y = np.empty((args.nevt, 3), dtype=np.float32)
+            out_y = np.empty((args.nevt, ntruth), dtype=np.float32)
 
             return out_x, out_n, out_y
 
@@ -336,7 +341,7 @@ elif args.dataset_type == 'regression':
             chunk_size = min(args.nevt, 1024)
             out_event = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
             out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
-            out_truth = output.create_dataset('y', (args.nevt, 3), chunks=(chunk_size, 3), compression='gzip', dtype='f')
+            out_truth = output.create_dataset('y', (args.nevt, ntruth), chunks=(chunk_size, ntruth), compression='gzip', dtype='f')
             out_event.write_direct(out_x)
             out_size.write_direct(out_n)
             out_truth.write_direct(out_y)
@@ -344,7 +349,7 @@ elif args.dataset_type == 'regression':
     elif args.output_format == 'root':
         def make_new_output():
             out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
-            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', (3,), np.float32)])
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', (ntruth,), np.float32)])
 
             return out_x, out_entries
 
@@ -359,10 +364,10 @@ elif args.dataset_type == 'regression':
             out_tree = ROOT.TTree('events', '')
             out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
             out_n = np.empty((1,), dtype=np.int16)
-            out_y = np.empty((3,), dtype=np.float32)
+            out_y = np.empty((ntruth,), dtype=np.float32)
             out_tree.Branch('n', out_n, 'n/S')
             out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
-            out_tree.Branch('y', out_y, 'y[3]/F')
+            out_tree.Branch('y', out_y, 'y[%d]/F' % ntruth)
 
             return out_x, out_n, out_y, out_tree, output
 
@@ -376,7 +381,7 @@ elif args.dataset_type == 'regression':
     coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z']), axis=-1)
 
     electrons = make_generator(ele_paths, ['recoEnergy', 'genEnergy', 'genX', 'genY'])()
-    #pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy', 'genX', 'genY'])()
+    pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy', 'genX', 'genY'])()
     if args.add_pu:
         pus = make_generator(pu_paths, ['recoEnergy'])()
 
@@ -390,8 +395,7 @@ elif args.dataset_type == 'regression':
             if ipart == 0:
                 prim, genE, genX, genY = next(electrons)
             else:
-                #prim, genE, genX, genY = next(pions)
-                prim, genE, genX, genY = next(electrons)
+                prim, genE, genX, genY = next(pions)
 
             if args.add_pu:
                 pu, = next(pus)
@@ -400,8 +404,11 @@ elif args.dataset_type == 'regression':
     
             t = time.time()
 
-            if (genE - np.sum(prim) * 1.e-3) / genE > 0.2:
-                print 'Skipping event because of large energy loss:', genE, '->', np.sum(prim) * 1.e-3
+            #if (genE - np.sum(prim) * 1.e-3) / genE > 0.2:
+            #    print 'Skipping event because of large energy loss:', genE, '->', np.sum(prim) * 1.e-3
+            #    continue
+            reco_total = np.sum(prim) * 1.e-3
+            if reco_total == 0.:
                 continue
     
             event = prim
@@ -427,7 +434,7 @@ elif args.dataset_type == 'regression':
                 np.expand_dims(event * 1.e-3, axis=-1)
             ), axis=-1)
 
-            y = np.stack((genE, genX, genY), axis=-1)
+            y = np.array([genE, genX, genY, reco_total])
 
             time_process += time.time() - t
     
@@ -440,7 +447,14 @@ while ifile != args.nfile:
 
     try:
         for iev, ipart in enumerate(np.random.randint(0, 2, args.nevt)):
-            x, y = make_event(ipart)
+            event = make_event(ipart)
+
+            if len(event) == 2:
+                x, y = event
+                fill_args = out
+            else:
+                x, y, o = event
+                fill_args = (o,) + out
 
             n = x.shape[0]
             if n > cluster_size_max:
@@ -449,42 +463,44 @@ while ifile != args.nfile:
 
             t = time.time()
 
-            fill_event(x, y, n, *out)
+            fill_event(x, y, n, *fill_args)
     
             time_write += time.time() - t
 
     except StopIteration:
         print 'Early stop due to input exhaustion.'
-        ifile = args.nfile - 1
+        break
 
-    if args.write_processed:
-        for path in processed_paths_list:
-            processed_paths.write(path + '\n')
-
-        del processed_paths_list[:]
-
-    t = time.time()
-
-    if args.output_format == 'h5':
-        with h5py.File(tmpname, 'w', libver='latest') as output:
-            write_h5(output, *out)
-
-        extension = 'h5'
-
-    elif args.output_format == 'root':
-        rnp.array2root(out_entries, tmpname, treename='events', mode='recreate')
-        extension = 'root'
-
-    elif args.output_format == 'root-sparse':
-        out_x, out_n, out_y, out_tree, output = out
-        output.cd()
-        out_tree.Write()
-        output.Close()
-        extension = 'root'
-
-    shutil.move(tmpname, '%s_%d.%s' % (args.outname, ifile + args.first_ifile, extension))
-
-    time_write += time.time() - t
+    finally:
+        if args.write_processed:
+            for path in processed_paths_list:
+                processed_paths.write(path + '\n')
+    
+            del processed_paths_list[:]
+    
+        t = time.time()
+    
+        if args.output_format == 'h5':
+            with h5py.File(tmpname, 'w', libver='latest') as output:
+                write_h5(output, *out)
+    
+            extension = 'h5'
+    
+        elif args.output_format == 'root':
+            rnp.array2root(out_entries, tmpname, treename='events', mode='recreate')
+            extension = 'root'
+    
+        elif args.output_format == 'root-sparse':
+            out_tree = out[-2]
+            output = out[-1]
+            output.cd()
+            out_tree.Write()
+            output.Close()
+            extension = 'root'
+    
+        shutil.move(tmpname, '%s_%d.%s' % (args.outname, ifile + args.first_ifile, extension))
+    
+        time_write += time.time() - t
 
     ifile += 1
 
