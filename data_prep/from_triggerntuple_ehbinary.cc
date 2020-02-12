@@ -27,7 +27,7 @@ void
 convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nEntries = -1)
 {
   auto* outputFile(TFile::Open(_outputFileName, "recreate"));
-  auto* output(new TTree("tree", ""));
+  auto* output(new TTree("clusters", ""));
 
   constexpr unsigned long maxHitsPerCluster(256);
   
@@ -76,10 +76,14 @@ convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nE
   _input->SetBranchAddress("gen_phi", gen_phi.addr());
   _input->SetBranchAddress("gen_pt", gen_pt.addr());
   _input->SetBranchAddress("gen_pdgid", gen_pdgid.addr());
-  _input->SetBranchAddress("hmVRcl3d_pt", cl3d_pt.addr());
-  _input->SetBranchAddress("hmVRcl3d_eta", cl3d_eta.addr());
-  _input->SetBranchAddress("hmVRcl3d_phi", cl3d_phi.addr());
-  _input->SetBranchAddress("hmVRcl3d_clusters_id", cl3d_clusters_id.addr());
+  // _input->SetBranchAddress("hmVRcl3d_pt", cl3d_pt.addr());
+  // _input->SetBranchAddress("hmVRcl3d_eta", cl3d_eta.addr());
+  // _input->SetBranchAddress("hmVRcl3d_phi", cl3d_phi.addr());
+  // _input->SetBranchAddress("hmVRcl3d_clusters_id", cl3d_clusters_id.addr());
+  _input->SetBranchAddress("cl3d_pt", cl3d_pt.addr());
+  _input->SetBranchAddress("cl3d_eta", cl3d_eta.addr());
+  _input->SetBranchAddress("cl3d_phi", cl3d_phi.addr());
+  _input->SetBranchAddress("cl3d_clusters_id", cl3d_clusters_id.addr());
   _input->SetBranchAddress("tc_id", tc_id.addr());
   _input->SetBranchAddress("tc_energy", tc_energy.addr());
   _input->SetBranchAddress("tc_x", tc_x.addr());
@@ -97,6 +101,10 @@ convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nE
       double absEta(std::abs((*gen_eta)[iG]));
       if (absEta < 1.4 || absEta > 2.8)
         continue;
+
+      g_pt = (*gen_pt)[iG];
+      g_eta = (*gen_eta)[iG];
+      g_phi = (*gen_phi)[iG];
       
       unsigned iMatched(-1);
       double bestDPt(10000.);
@@ -105,10 +113,10 @@ convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nE
         if ((*cl3d_pt)[iC] < _minPt)
           continue;
 
-        double dEta((*gen_eta)[iG] - (*cl3d_eta)[iC]);
-        double dPhi(TVector2::Phi_mpi_pi((*gen_phi)[iG] - (*cl3d_phi)[iC]));
+        double dEta(g_eta - (*cl3d_eta)[iC]);
+        double dPhi(TVector2::Phi_mpi_pi(g_phi - (*cl3d_phi)[iC]));
         if (dEta * dEta + dPhi * dPhi < 0.01) {
-          double dPt(std::abs((*cl3d_pt)[iC] - (*gen_pt)[iG]));
+          double dPt(std::abs((*cl3d_pt)[iC] - g_pt));
           if (dPt < bestDPt) {
             iMatched = iC;
             bestDPt = dPt;
@@ -123,6 +131,7 @@ convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nE
         for (unsigned iT(0); iT != tc_id->size(); ++iT)
           cellMap.emplace((*tc_id)[iT], iT);
       }
+
 
       cl_pt = (*cl3d_pt)[iMatched];
       cl_eta = std::abs((*cl3d_eta)[iMatched]);
@@ -151,10 +160,11 @@ convert(TTree* _input, char const* _outputFileName, double _minPt = 5., long _nE
         double theta(std::atan2(r, z));
         double phi(std::atan2(y, x));
 
-        features[iD][0] = std::sqrt((*tc_energy)[iT]);
-        features[iD][1] = theta - cl_theta;
-        features[iD][2] = phi - cl_phi;
-        features[iD][3] = (z - 300.) / 200.;
+        // normalizations are empirical
+        features[iD][0] = (theta - cl_theta) / 0.05;
+        features[iD][1] = TVector2::Phi_mpi_pi(phi - cl_phi) / 0.2;
+        features[iD][2] = (z - 300.) / 200.;
+        features[iD][3] = (*tc_energy)[iT] / 50.;
       }
 
       output->Fill();

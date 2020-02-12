@@ -7,7 +7,8 @@ import ROOT
 
 path, out_dir = sys.argv[1:3]
 
-ROOT.gROOT.LoadMacro('from_triggerntuple_ehbinary.cc+')
+thisdir = os.path.dirname(os.path.realpath(__file__))
+ROOT.gROOT.LoadMacro('%s/from_triggerntuple_ehbinary.cc+' % thisdir)
 
 fname = os.path.basename(path)
 tmp_out = '%s/%s' % (os.getenv('TMPDIR', '/tmp'), fname)
