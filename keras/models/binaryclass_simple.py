@@ -31,9 +31,10 @@ if __name__ == '__main__':
     import sys
 
     out_path = sys.argv[1]
-    n_feat = int(sys.argv[2])
+    n_vert = int(sys.argv[2])
+    n_feat = int(sys.argv[3])
 
-    model = make_model(list(range(n_feat)), n_class=2)
+    model = make_model(n_vert, n_feat, n_class=2)
 
     with open(out_path, 'w') as json_file:
         json_file.write(model.to_json())
