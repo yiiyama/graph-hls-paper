@@ -18,7 +18,13 @@ HLSConfig:
     GarNet:
       ReuseFactor: 64
       Precision:
-        default: ap_fixed<14, 4>
+        # Default precision type is only used to represent weights
+        default: ap_fixed<16, 6, AP_RND, AP_SAT>
+        result: ap_fixed<16, 6>
+    Dense:
+      Precision:
+        accum: ap_fixed<18, 8>
+        result: ap_fixed<16, 6, AP_RND, AP_SAT>
   LayerName:
      input_1:
        # Output partitioning = n_vert * n_feat / reuse
