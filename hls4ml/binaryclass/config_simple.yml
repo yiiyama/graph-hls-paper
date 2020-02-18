@@ -1,0 +1,36 @@
+KerasJson: model_simple.json
+KerasH5:   weights_simple.h5
+OutputDir: simple
+ProjectName: myproject
+XilinxPart: xcku115-flvb2104-2-i
+ClockPeriod: 5
+
+IOType: io_parallel # options: io_serial/io_parallel
+CustomizeIO: 1
+GlobalPipelining: None
+
+HLSConfig:
+  Model:
+    Precision: ap_fixed<16, 6>
+    ReuseFactor: 1
+    Strategy: Latency
+  LayerType:
+    GarNet:
+      ReuseFactor: 64
+      Precision:
+        # Default precision type is only used to represent weights
+        default: ap_fixed<16, 6, AP_RND, AP_SAT>
+        result: ap_fixed<16, 6>
+    Dense:
+      Precision:
+        accum: ap_fixed<18, 8>
+        result: ap_fixed<16, 6, AP_RND, AP_SAT>
+  LayerName:
+     input_1:
+       # Output partitioning = n_vert * n_feat / reuse
+       OutputPartitioning: reshape,cyclic,64,1
+       Precision:
+         result: ap_fixed<14, 5, AP_RND, AP_SAT>
+     input_2:
+       Precision:
+         result: ap_uint<10>

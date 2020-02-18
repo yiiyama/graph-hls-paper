@@ -1,6 +1,6 @@
-KerasJson: model_simple.json
-KerasH5:   weights.h5
-OutputDir: simple
+KerasJson: model_stack.json
+KerasH5:   weights_stack.h5
+OutputDir: stack
 ProjectName: myproject
 XilinxPart: xcku115-flvb2104-2-i
 ClockPeriod: 5
@@ -15,7 +15,7 @@ HLSConfig:
     ReuseFactor: 1
     Strategy: Latency
   LayerType:
-    GarNet:
+    GarNetStack:
       ReuseFactor: 64
       Precision:
         # Default precision type is only used to represent weights
