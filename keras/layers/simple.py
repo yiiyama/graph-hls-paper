@@ -4,6 +4,7 @@ import math
 import keras
 import keras.backend as K
 
+import layers.dense_hack
 from debug_flag import DEBUG
 debug_summarize = None
 
@@ -27,9 +28,9 @@ class GarNet(keras.layers.Layer):
         self.mean_by_nvert = mean_by_nvert
 
     def _setup_transforms(self, n_aggregators, n_filters, n_propagate, output_activation):
-        self.input_feature_transform = keras.layers.Dense(n_propagate, name=self.name+'/FLR')
-        self.aggregator_distance = keras.layers.Dense(n_aggregators, name=self.name+'/S')
-        self.output_feature_transform = keras.layers.Dense(n_filters, activation=output_activation, name=self.name+'/Fout')
+        self.input_feature_transform = keras.layers.Dense(n_propagate, name='FLR')
+        self.aggregator_distance = keras.layers.Dense(n_aggregators, name='S')
+        self.output_feature_transform = keras.layers.Dense(n_filters, activation=output_activation, name='Fout')
 
         self._sublayers = [self.input_feature_transform, self.aggregator_distance, self.output_feature_transform]
 

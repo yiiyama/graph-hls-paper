@@ -13,9 +13,9 @@ class GarNetStack(GarNet):
         # inputs are lists
         for it, (p, a, f) in enumerate(zip(n_propagate, n_aggregators, n_filters)):
             self.transform_layers.append((
-                keras.layers.Dense(p, name=(self.name + ('/FLR%d' % it))),
-                keras.layers.Dense(a, name=(self.name + ('/S%d' % it))),
-                keras.layers.Dense(f, activation=output_activation, name=(self.name + ('/Fout%d' % it)))
+                keras.layers.Dense(p, name=('FLR%d' % it)),
+                keras.layers.Dense(a, name=('S%d' % it)),
+                keras.layers.Dense(f, activation=output_activation, name=('Fout%d' % it))
             ))
 
         self._sublayers = sum((list(layers) for layers in self.transform_layers), [])
