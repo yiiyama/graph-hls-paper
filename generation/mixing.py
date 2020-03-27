@@ -440,6 +440,115 @@ elif args.dataset_type == 'regression':
     
             return x, y
 
+elif args.dataset_type == 'combined':
+    cluster_size_max = 128
+    nfeat = 4
+    threshold = 120. # hit energy threshold
+
+    if args.output_format == 'h5':
+        def make_new_output():
+            out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((args.nevt,), dtype=np.int16)
+            out_y = np.empty((args.nevt, 2), dtype=np.float32)
+
+            return out_x, out_n, out_y
+
+        def fill_event(x, y, n, out_x, out_n, out_y):
+            out_x[iev, :n] = x[:n]
+            out_n[iev] = n
+            out_y[iev] = y
+
+        def write_h5(output):
+            chunk_size = min(args.nevt, 1024)
+            out_clusters = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
+            out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth = output.create_dataset('y', (args.nevt, 2), chunks=(chunk_size, 2), compression='gzip', dtype='f')
+            out_clusters.write_direct(out_x)
+            out_size.write_direct(out_n)
+            out_truth.write_direct(out_y)
+
+    elif args.output_format == 'root':
+        def make_new_output():
+            out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.float32)])
+
+            return out_x, out_entries
+
+        def fill_event(x, y, n, out_x, out_entries):
+            out_x[:n] = x[:n]
+            out_x[n:] *= 0.
+            out_entries[iev] = (out_x, n, y)
+
+    elif args.output_format == 'root-sparse':
+        def make_new_output():
+            output = ROOT.TFile.Open(tmpname, 'recreate')
+            out_tree = ROOT.TTree('events', '')
+            out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.empty((1,), dtype=np.int32)
+            out_y = np.empty((2,), dtype=np.float32)
+            out_tree.Branch('n', out_n, 'n/I')
+            out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
+            out_tree.Branch('y', out_y, 'y[2]/F')
+
+            return out_x, out_n, out_y, out_tree, output
+
+        def fill_event(x, y, n, out_x, out_n, out_y, out_tree, output):
+            out_x[:n] = x[:n]
+            out_n[0] = n
+            out_y[:] = y
+            out_tree.Fill()
+
+    cluster_radius_sq = 6.4 ** 2
+
+    coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z']), axis=-1)
+
+    electrons = make_generator(ele_paths, ['recoEnergy', 'genEnergy'])()
+    pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy'])()
+    if args.add_pu:
+        pus = make_generator(pu_paths, ['recoEnergy'])()
+
+    def make_event(ipart):
+        global time_read
+        global time_process
+
+        t = time.time()
+
+        if ipart == 0:
+            prim, energy = next(electrons)
+        else:
+            prim, energy = next(pions)
+
+        if args.add_pu:
+            pu, = next(pus)
+
+        time_read += time.time() - t
+
+        t = time.time()
+
+        if args.add_pu:
+            event = prim + pu
+        else:
+            event = prim
+
+        iseed = np.argmax(event)
+
+        seed_axis = np.tile(coords[iseed, :2], (coords.shape[0], 1))
+        dr2 = np.sum(np.square(coords[:, :2] - seed_axis), axis=1)
+        in_radius = np.asarray((dr2 < cluster_radius_sq) & (event > threshold)).nonzero()
+
+        x = np.stack((
+            (geom_data['x'] - coords[iseed, 0]) / 18.,
+            (geom_data['y'] - coords[iseed, 1]) / 18.,
+            (geom_data['z'] - 350.) / 200.,
+            event * 1.e-3 * 0.5 # empirical factor to fit majority of events under 1 GeV
+        ), axis=-1)[in_radius]
+
+        indices = np.flip(np.argsort(x[:, 3]))
+        x = x[indices]
+
+        time_process += time.time() - t
+
+        return x, (ipart, energy)
 
 ifile = 0
 while ifile != args.nfile:
