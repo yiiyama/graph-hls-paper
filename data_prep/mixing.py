@@ -52,8 +52,8 @@ def make_generator(paths, branches, report_ievt=False):
 ele_paths = glob.glob('%s/SingleE_*/ntuple_*.root' % args.source)
 pi_paths = glob.glob('%s/SinglePion_*/ntuple_*.root' % args.source)
 
-electrons = make_generator(ele_paths, ['x', 'n', 'y', 'gen_pt'])()
-pions = make_generator(pi_paths, ['x', 'n', 'y', 'gen_pt'])()
+electrons = make_generator(ele_paths, ['x', 'n', 'y', 'cl_pt', 'gen_pt', 'gen_eta'])()
+pions = make_generator(pi_paths, ['x', 'n', 'y', 'cl_pt', 'gen_pt', 'gen_eta'])()
 
 ifile = 0
 while ifile != args.nfile:
@@ -61,24 +61,34 @@ while ifile != args.nfile:
     out_tree = ROOT.TTree('events', '')
     out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
     out_n = np.empty((1,), dtype=np.int32)
-    out_y = np.empty((1,), dtype=np.int32)
+    out_y = np.empty((2,), dtype=np.float32)
+    out_pt = np.empty((1,), dtype=np.float32)
+    out_eta = np.empty((1,), dtype=np.float32)
     out_tree.Branch('n', out_n, 'n/I')
     out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
-    out_tree.Branch('y', out_y, 'y/I')
+    out_tree.Branch('y', out_y, 'y[2]/F')
+    out_tree.Branch('cl_pt', out_pt, 'cl_pt/F')
+    out_tree.Branch('gen_eta', out_eta, 'gen_eta/F')
 
     try:
-        for iev, ipart in enumerate(np.random.randint(0, 2, args.nevt)):
-            if ipart == 0:
-                x, n, y, pt = next(electrons)
+        for irand in np.random.randint(0, 100, args.nevt):
+            if irand < 62:
+                x, n, y, cl_pt, gen_pt, eta = next(electrons)
             else:
-                x, n, y, pt = next(pions)
-
-            if pt < 20.:
+                x, n, y, cl_pt, gen_pt, eta = next(pions)
+                
+            if gen_pt < 15.:
                 continue
+
+            # rescale energy - values too small and prone to quantization error in HLS
+            x[:, 3] *= 10.
 
             out_x[:n] = x[:n]
             out_n[0] = n
-            out_y[0] = y
+            out_y[0] = float(y)
+            out_y[1] = gen_pt
+            out_pt[0] = cl_pt
+            out_eta[0] = eta
             out_tree.Fill()
 
     except StopIteration:
