@@ -2,22 +2,28 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import keras
 import keras.backend as K
-from layers.simple import GarNet
+from layers.caloGraphNN_keras import GarNetStack
 
 from debug_flag import DEBUG
 
+# model parameters
+n_vert_max = 1024
+n_feat = 4
+y_features = 1
+
+# training parameters
 input_format = 'xn'
 
-def make_model(n_vert, n_feat):
-    n_aggregators = 4
-    n_filters = 4
-    n_propagate = 4
-    
+# exported parameters
+initial_lr = 0.0005
+generator_args = {'n_vert_max': n_vert_max, format=input_format, 'y_features': y_features}
+
+def make_model():
     if input_format == 'xn':
-        x = keras.layers.Input(shape=(n_vert, n_feat))
+        x = keras.layers.Input(shape=(n_vert_max, n_feat))
     else:
-        x = keras.layers.Input(shape=(n_vert, n_feat - 1))
-        e = keras.layers.Input(shape=(n_vert,))
+        x = keras.layers.Input(shape=(n_vert_max, n_feat - 1))
+        e = keras.layers.Input(shape=(n_vert_max,))
     n = keras.layers.Input(shape=(1,), dtype='uint16')
     if input_format == 'xn':
         inputs = [x, n]
@@ -25,14 +31,8 @@ def make_model(n_vert, n_feat):
         inputs = [x, e, n]
 
     v = inputs
-    v = GarNet(4, 8, 8, input_format=input_format, name='gar_1')(v)
-    v = GarNet(4, 8, 8, input_format=input_format, name='gar_2')([v, n])
-    v = GarNet(4, 8, 8, input_format=input_format, name='gar_3')([v, n])
-#    v = GarNet(4, 8, 8, input_format=input_format, name='gar_4')([v, n])
-#    v = GarNet(4, 8, 8, input_format=input_format, name='gar_5')([v, n])
-    v = GarNet(4, 8, 8, collapse='mean', input_format=input_format, name='gar_6')([v, n])
+    v = GarNetStack([4, 4], [8, 8], [8, 8], simplified=True, collapse='mean', input_format=input_format, output_activation=None, name='gar_1')(v)
     v = keras.layers.Dense(8, activation='relu')(v)
-    #v = keras.layers.Dense(4, activation='relu')(v)
     v = keras.layers.Dense(1)(v)
     outputs = v
     
@@ -53,15 +53,3 @@ def make_loss():
             return K.mean(K.square(y_true - y_pred) / y_true, axis=-1)
 
     return loss
-
-if __name__ == '__main__':
-    import sys
-
-    out_path = sys.argv[1]
-    n_vert = int(sys.argv[2])
-    n_feat = int(sys.argv[3])
-
-    model = make_model(n_vert, n_feat)
-
-    with open(out_path, 'w') as json_file:
-        json_file.write(model.to_json())

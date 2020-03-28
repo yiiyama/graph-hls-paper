@@ -5,8 +5,9 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import sys
 import importlib
 
-model = sys.argv[1]
+modelmod = importlib.import_module('models.%s' % sys.argv[1])
 
-module = importlib.import_module('models.' + model)
+model = make_model()
 
-module.write_model(sys.argv[2:])
+with open(sys.argv[2], 'w') as json_file:
+    json_file.write(model.to_json())
