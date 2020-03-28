@@ -27,8 +27,6 @@ HLSConfig:
         result: ap_fixed<16, 6, AP_RND, AP_SAT>
   LayerName:
      input_1:
-       # Output partitioning = n_vert * n_feat / reuse
-       OutputPartitioning: reshape,cyclic,64,1
        Precision:
          result: ap_fixed<14, 5, AP_RND, AP_SAT>
      input_2:
