@@ -8,16 +8,11 @@ import importlib
 import keras
 import numpy as np
 
-argv = list(sys.argv)
-del sys.argv[1:]
-
 import debug_flag
 # Set to True to get printouts
 debug_flag.DEBUG = False
 
 if __name__ == '__main__':
-    sys.argv = argv
-
     from argparse import ArgumentParser
 
     parser = ArgumentParser(description='Train the keras model.')

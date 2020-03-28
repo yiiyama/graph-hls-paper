@@ -17,6 +17,9 @@ input_format = 'xn'
 # exported parameters
 initial_lr = 0.0005
 generator_args = {'n_vert_max': n_vert_max, format=input_format, 'y_features': y_features}
+root_out_dtype = [('x', np.float32, (n_vert_max, n_feat)), ('n', np.int32), ('pred', np.float32), ('truth', np.float32)]
+if input_format == 'xen':
+    root_out_dtype.insert(1, ('e', np.float32))
 
 def make_model():
     if input_format == 'xn':
@@ -53,3 +56,28 @@ def make_loss():
             return K.mean(K.square(y_true - y_pred) / y_true, axis=-1)
 
     return loss
+
+def evalute_prediction(prediction, truth):
+    pred = np.squeeze(prediction)
+    truth = np.squeeze(truth) * 1.e-2
+    print('sqrt mean ((E_reco - E_gen) / E_gen)^2 =', np.sqrt(np.mean(np.square((pred - truth) / truth))))
+
+def make_root_out_entries(inputs, prediction, truth):
+    pred = np.squeeze(prediction)
+    truth = np.squeeze(truth) * 1.e-2
+
+    return tuple(inputs) + (pred, truth)
+
+def write_ascii_out(inputs, prediction, in_file, out_file):
+    pred = np.squeeze(prediction)
+
+    for entry in zip(*(tuple(inputs) + (pred,))):
+        if input_format == 'xn':
+            x_val, n_val, p_val = entry
+        else:
+            x_val, e_val, n_val, p_val = entry
+        in_file.write(' '.join('%f' % v for v in np.reshape(x_val, (-1,))))
+        if input_format == 'xen':
+            in_file.write(' ' + ' '.join('%f' % v for v in e_val))
+        in_file.write(' %d\n' % n_val)
+        out_file.write('%f\n' % p_val)

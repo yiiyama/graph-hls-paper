@@ -21,6 +21,7 @@ def sample_weighting(x, y): # for HGCAL dataset; we have more electrons than pio
 initial_lr = 0.0005
 generator_args = {'n_vert_max': n_vert_max, 'y_features': y_features, 'y_dtype': y_dtype, 'sample_weighting': sample_weighting}
 compile_args = {'loss_weights': {'classification': 0.01, 'regression': 0.99}}
+root_out_dtype = [('x', np.float32, (n_vert_max, n_feat)), ('n', np.int32), ('pred_regression', np.float32), ('pred_classification', np.float32), ('truth_regression', np.float32), ('truth_classification', np.float32)]
 
 def make_model():
     x = keras.layers.Input(shape=(n_vert_max, n_feat))
@@ -56,3 +57,30 @@ def make_loss():
             return K.mean(K.square((y_true - y_pred) / y_true), axis=-1)
 
     return {'regression': regression_loss, 'classification': 'binary_crossentropy'}
+
+def evaluate_prediction(prediction, truth):
+    pred_regression, pred_classification = map(np.squeeze, prediction)
+
+    truth_regression = np.squeeze(truth['regression']) * 1.e-2
+    print('sqrt (mean ((E_reco - E_gen) / E_gen)^2) =', np.sqrt(np.mean(np.square((pred_regression - truth_regression) / truth_regression))))
+
+    truth_classification = np.squeeze(truth['classification'])
+    print('accuracy', np.mean(np.asarray(np.asarray(pred_classification > 0.5, dtype=np.int32) == truth_classification, dtype=np.float32)))
+
+def make_root_out_entries(inputs, prediction, truth):
+    pred_regression, pred_classification = map(np.squeeze, prediction)
+    truth_regression = np.squeeze(truth['regression']) * 1.e-2
+    truth_classification = np.squeeze(truth['classification'])
+
+    return tuple(inputs) + (pred_regression, pred_classification, truth_regression, truth_classification)
+
+def write_ascii_out(inputs, prediction, in_file, out_file):
+    pred_regression, pred_classification = map(np.squeeze, prediction)
+
+    for entry in zip(*(tuple(inputs) + (pred_regression, pred_classification))):
+        x, n, pred_r, pred_c = entry
+
+        in_file.write(' '.join('%f' % v for v in np.reshape(x, (-1,))))
+        in_file.write(' %d\n' % n)
+        out_file.write('%f\n' % pred_r)
+        out_file.write('%f\n' % pred_c)
