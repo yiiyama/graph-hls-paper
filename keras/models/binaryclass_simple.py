@@ -1,5 +1,5 @@
 import keras
-from layers.simple import GarNet
+from layers.caloGraphNN.caloGraphNN_keras import GarNet
 
 # model parameters
 n_class = 2

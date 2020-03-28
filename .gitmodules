@@ -1,3 +1,6 @@
 [submodule "miniCalo"]
 	path = miniCalo
 	url = https://github.com/jkiesele/miniCalo
+[submodule "keras/layers/caloGraphNN"]
+	path = keras/layers/caloGraphNN
+	url = https://github.com/jkiesele/caloGraphNN.git

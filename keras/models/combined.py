@@ -2,8 +2,7 @@ import keras
 import keras.backend as K
 import numpy as np
 
-#from layers.stack import GarNetStack
-from layers.caloGraphNN_keras import GarNetStack
+from layers.caloGraphNN.caloGraphNN_keras import GarNetStack
 from debug_flag import DEBUG
 
 # model parameters

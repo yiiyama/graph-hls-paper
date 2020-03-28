@@ -9,7 +9,7 @@ from debug_flag import DEBUG
 debug_summarize = None
 
 class GarNet(keras.layers.Layer):
-    def __init__(self, n_aggregators, n_filters, n_propagate, collapse=None, input_format='xn', discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
+    def __init__(self, n_aggregators, n_filters, n_propagate, simplified=True, collapse=None, input_format='xn', discretize_distance=False, output_activation=None, mean_by_nvert=False, **kwargs):
         super(GarNet, self).__init__(**kwargs)
 
         self._setup_aux_params(collapse, input_format, discretize_distance, mean_by_nvert)
@@ -111,7 +111,7 @@ class GarNet(keras.layers.Layer):
             if DEBUG:
                 distance = K.print_tensor(distance, message='rounded distance is ', summarize=debug_summarize)
 
-        edge_weights = vertex_mask * K.exp(K.square(distance) * (-math.log(2.))) # (B, V, S)
+        edge_weights = vertex_mask * K.exp(-K.square(distance)) # (B, V, S)
         
         if DEBUG:
             edge_weights = K.print_tensor(edge_weights, message='edge_weights is ', summarize=debug_summarize)

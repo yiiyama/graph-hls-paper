@@ -2,7 +2,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import keras
 import keras.backend as K
-from layers.caloGraphNN_keras import GarNetStack
+from layers.caloGraphNN.caloGraphNN_keras import GarNetStack
 
 from debug_flag import DEBUG
 
