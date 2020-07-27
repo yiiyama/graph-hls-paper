@@ -14,7 +14,7 @@ arg_parser = ArgumentParser(description='Run simple jobs on condor')
 arg_parser.add_argument('--dataset', '-s', metavar='TYPE', dest='dataset_type', default='classification', help='Task type of the dataset (classification, clustering, regression(?)).')
 arg_parser.add_argument('--format', '-f', metavar='FORMAT', dest='output_format', default='root', help='Output file format (h5, root, root-sparse).')
 arg_parser.add_argument('--nevt', '-n', metavar='N', dest='nevt', default=1000, type=int, help='Number of events in one file.')
-arg_parser.add_argument('--nfile', '-m', metavar='N', dest='nfile', default=1, type=int, help='Number of files to produce.')
+arg_parser.add_argument('--nfile', '-m', metavar='N', dest='nfile', default=-1, type=int, help='Number of files to produce.')
 arg_parser.add_argument('--first-file', '-i', metavar='N', dest='first_ifile', default=0, type=int, help='Index of the first output file.')
 arg_parser.add_argument('--source', '-c', metavar='PATH', dest='source', default='/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated', help='Source directory of generated events file')
 arg_parser.add_argument('--out', '-o', metavar='PATH', dest='outname', default='mixing', help='Output file name without the serial number and extension.')
@@ -443,13 +443,14 @@ elif args.dataset_type == 'regression':
 elif args.dataset_type == 'combined':
     cluster_size_max = 128
     nfeat = 4
+    ntfeat = 3
     threshold = 120. # hit energy threshold
 
     if args.output_format == 'h5':
         def make_new_output():
             out_x = np.empty((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
             out_n = np.empty((args.nevt,), dtype=np.int16)
-            out_y = np.empty((args.nevt, 2), dtype=np.float32)
+            out_y = np.empty((args.nevt, ntfeat), dtype=np.float32)
 
             return out_x, out_n, out_y
 
@@ -462,7 +463,7 @@ elif args.dataset_type == 'combined':
             chunk_size = min(args.nevt, 1024)
             out_clusters = output.create_dataset('x', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
             out_size = output.create_dataset('n', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
-            out_truth = output.create_dataset('y', (args.nevt, 2), chunks=(chunk_size, 2), compression='gzip', dtype='f')
+            out_truth = output.create_dataset('y', (args.nevt, ntfeat), chunks=(chunk_size, ntfeat), compression='gzip', dtype='f')
             out_clusters.write_direct(out_x)
             out_size.write_direct(out_n)
             out_truth.write_direct(out_y)
@@ -470,7 +471,7 @@ elif args.dataset_type == 'combined':
     elif args.output_format == 'root':
         def make_new_output():
             out_x = np.zeros((cluster_size_max, nfeat), dtype=np.float32)
-            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.float32)])
+            out_entries = np.empty((args.nevt,), dtype=[('x', np.float32, (cluster_size_max, nfeat)), ('n', np.int16), ('y', np.float32, (ntfeat,))])
 
             return out_x, out_entries
 
@@ -485,10 +486,10 @@ elif args.dataset_type == 'combined':
             out_tree = ROOT.TTree('events', '')
             out_x = np.empty((cluster_size_max, nfeat), dtype=np.float32)
             out_n = np.empty((1,), dtype=np.int32)
-            out_y = np.empty((2,), dtype=np.float32)
+            out_y = np.empty((ntfeat,), dtype=np.float32)
             out_tree.Branch('n', out_n, 'n/I')
             out_tree.Branch('x', out_x, 'x[n][%d]/F' % nfeat)
-            out_tree.Branch('y', out_y, 'y[2]/F')
+            out_tree.Branch('y', out_y, 'y[%d]/F' % ntfeat)
 
             return out_x, out_n, out_y, out_tree, output
 
@@ -546,11 +547,109 @@ elif args.dataset_type == 'combined':
         indices = np.flip(np.argsort(x[:, 3]))
         x = x[indices]
 
+        y = (ipart, energy, energy / (np.sum(x[:, 3]) * 4.)) # yet another empirical factor
+
         time_process += time.time() - t
 
-        return x, (ipart, energy)
+        return x, y
+
+elif args.dataset_type == 'public':
+    cluster_size_max = 128
+    nfeat = 4
+    ntfeat = 2
+    threshold = 120. # hit energy threshold
+
+    coords = np.stack((geom_data['x'], geom_data['y'], geom_data['z'] - 350.), axis=-1)
+
+    if args.output_format == 'h5':
+        def make_new_output():
+            out_x = np.zeros((args.nevt, cluster_size_max, nfeat), dtype=np.float32)
+            out_n = np.zeros((args.nevt,), dtype=np.int16)
+            out_y_pid = np.zeros((args.nevt,), dtype=np.int8)
+            out_y_energy = np.zeros((args.nevt,), dtype=np.float32)
+            out_raw = np.zeros((args.nevt, coords.shape[0], 2), dtype=np.float32)
+
+            return out_x, out_n, [out_y_pid, out_y_energy, out_raw]
+
+        def fill_event(x, y, n, out_x, out_n, out_y):
+            out_x[iev, :n] = x[:n]
+            out_n[iev] = n
+            out_y[0][iev] = y[0]
+            out_y[1][iev] = y[1]
+            out_y[2][iev] = y[2]
+
+        def write_h5(output, out_x, out_n, out_y):
+            chunk_size = min(args.nevt, 1024)
+            out_clusters = output.create_dataset('cluster', (args.nevt, cluster_size_max, nfeat), chunks=(chunk_size, cluster_size_max, nfeat), compression='gzip', dtype='f')
+            out_size = output.create_dataset('size', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth_pid = output.create_dataset('truth_pid', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='i')
+            out_truth_energy = output.create_dataset('truth_energy', (args.nevt,), chunks=(chunk_size,), compression='gzip', dtype='f')
+            out_raw = output.create_dataset('raw', (args.nevt, coords.shape[0], 2), chunks=(chunk_size, coords.shape[0], 2), compression='gzip', dtype='f')
+            out_coordinates = output.create_dataset('coordinates', coords.shape, compression='gzip', dtype='f')
+            out_clusters.write_direct(out_x)
+            out_size.write_direct(out_n)
+            out_truth_pid.write_direct(out_y[0])
+            out_truth_energy.write_direct(out_y[1])
+            out_raw.write_direct(out_y[2])
+            out_coordinates.write_direct(coords)
+
+    cluster_radius_sq = 6.4 ** 2
+
+    electrons = make_generator(ele_paths, ['recoEnergy', 'genEnergy'])()
+    pions = make_generator(pi_paths, ['recoEnergy', 'genEnergy'])()
+    if args.add_pu:
+        pus = make_generator(pu_paths, ['recoEnergy'])()
+
+    def make_event(ipart):
+        global time_read
+        global time_process
+
+        t = time.time()
+
+        if ipart == 0:
+            prim, energy = next(electrons)
+        else:
+            prim, energy = next(pions)
+
+        if args.add_pu:
+            pu, = next(pus)
+
+        time_read += time.time() - t
+
+        t = time.time()
+
+        event = prim + pu
+
+        frac = np.zeros_like(event)
+        np.divide(prim, event, out=frac, where=(event != 0.))
+        raw = np.stack((event, frac), axis=-1)
+
+        iseed = np.argmax(event)
+
+        seed_axis = np.tile(coords[iseed, :2], (coords.shape[0], 1))
+        dr2 = np.sum(np.square(coords[:, :2] - seed_axis), axis=1)
+        in_radius = np.asarray((dr2 < cluster_radius_sq) & (event > threshold)).nonzero()
+
+        x = np.stack((
+            geom_data['x'] - coords[iseed, 0],
+            geom_data['y'] - coords[iseed, 1],
+            geom_data['z'] - 350.,
+            event * 1.e-3
+        ), axis=-1)[in_radius]
+
+        indices = np.flip(np.argsort(x[:, 3]))
+        x = x[indices]
+
+        y = [ipart, energy, raw]
+
+        time_process += time.time() - t
+
+        return x, y
+
 
 ifile = 0
+n_total = 0
+n_oversize = 0
 while ifile != args.nfile:
     out = make_new_output()
 
@@ -568,11 +667,13 @@ while ifile != args.nfile:
             n = x.shape[0]
             if n > cluster_size_max:
                 print 'large cluster: ', x.shape[0]
+                n_oversize += 1
                 n = cluster_size_max
 
             t = time.time()
 
             fill_event(x, y, n, *fill_args)
+            n_total += 1
     
             time_write += time.time() - t
 
@@ -613,4 +714,5 @@ while ifile != args.nfile:
 
     ifile += 1
 
-print 'Read time:', time_read, 'Process time:', time_process, 'Write time:', time_write
+print 'Read time:', time_read, 'Process time:', time_process, 'Write time:', time_write, 'Total events:', n_total
+print 'Oversize fraction:', float(n_oversize) / n_total
