@@ -35,9 +35,9 @@ main(int argc, char** argv)
   auto visManager{std::make_unique<G4VisExecutive>()};
   visManager->Initialize();
 
-  G4UImanager::GetUIpointer()->ApplyCommand("/control/execute init_vis.mac");
+  G4UImanager::GetUIpointer()->ApplyCommand("/control/execute macros/init_vis.mac");
   if (ui->IsGUI())
-    G4UImanager::GetUIpointer()->ApplyCommand("/control/execute gui.mac");
+    G4UImanager::GetUIpointer()->ApplyCommand("/control/execute macros/gui.mac");
 
   ui->SessionStart();
 
