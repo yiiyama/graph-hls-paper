@@ -1,6 +1,6 @@
 KerasJson: model_quantized.json
 KerasH5:   weights_quantized.h5
-OutputDir: /local/yiiyama/graph-hls-paper/combined/quantized
+OutputDir: quantized
 ProjectName: myproject
 XilinxPart: xcku115-flvb2104-2-i
 ClockPeriod: 5
