@@ -1,7 +1,10 @@
-import keras
 import numpy as np
 import ROOT
 import root_numpy as rnp
+try:
+    import tensorflow.keras as keras
+except ImportError:
+    import keras
 
 from models.regression_simple import input_format
 

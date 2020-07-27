@@ -1,7 +1,11 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 
-import keras
-import keras.backend as K
+try:
+    import tensorflow.keras as keras
+except ImportError:
+    import keras
+K = keras.backend
+
 from layers.caloGraphNN.caloGraphNN_keras import GarNetStack
 
 from debug_flag import DEBUG
@@ -67,6 +71,12 @@ def make_root_out_entries(inputs, prediction, truth):
     truth = np.squeeze(truth) * 1.e-2
 
     return tuple(inputs) + (pred, truth)
+
+def make_h5_out_data(prediction, truth):
+    pred = np.squeeze(prediction)
+    truth = np.squeeze(truth) * 1.e-2
+
+    return {'pred': pred, 'truth': truth}
 
 def write_ascii_out(inputs, prediction, in_file, out_file):
     pred = np.squeeze(prediction)
