@@ -1,6 +1,6 @@
 KerasJson: model_prequantization_16.json
 KerasH5:   weights_prequantization_16.h5
-OutputDir: /local/yiiyama/graph-hls-paper/combined/prequantization_16
+OutputDir: prequantization_16
 ProjectName: myproject
 XilinxPart: xcku115-flvb2104-2-i
 ClockPeriod: 5
