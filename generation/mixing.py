@@ -16,7 +16,7 @@ arg_parser.add_argument('--format', '-f', metavar='FORMAT', dest='output_format'
 arg_parser.add_argument('--nevt', '-n', metavar='N', dest='nevt', default=1000, type=int, help='Number of events in one file.')
 arg_parser.add_argument('--nfile', '-m', metavar='N', dest='nfile', default=-1, type=int, help='Number of files to produce.')
 arg_parser.add_argument('--first-file', '-i', metavar='N', dest='first_ifile', default=0, type=int, help='Index of the first output file.')
-arg_parser.add_argument('--source', '-c', metavar='PATH', dest='source', default='/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated', help='Source directory of generated events file')
+arg_parser.add_argument('--source', '-c', metavar='PATH', dest='source', help='Source directory of generated events file')
 arg_parser.add_argument('--out', '-o', metavar='PATH', dest='outname', default='mixing', help='Output file name without the serial number and extension.')
 arg_parser.add_argument('--write-processed', '-x', metavar='PATH', dest='write_processed', help='Write the paths of processed files to PATH.')
 arg_parser.add_argument('--skip-processed', '-y', metavar='PATH', dest='skip_processed', help='Skip input files listed in PATH.')
@@ -42,8 +42,6 @@ except:
     pass
 
 geom_data = uproot.open('geom.root')['detector'].arrays(['id', 'x', 'y', 'z', 'dxy', 'dz'])
-# bugfix
-geom_data['dz'] = np.where(geom_data['z'] < 350. + 0.6 * 25, 0.6, 4.2)
 
 ele_paths = glob.glob('%s/electron_10_100/*/events_*.root' % args.source)
 pi_paths = glob.glob('%s/pioncharged_10_100/*/events_*.root' % args.source)

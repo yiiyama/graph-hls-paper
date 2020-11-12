@@ -7,6 +7,7 @@ import sys
 import importlib
 import numpy as np
 
+from callbacks.report_time import TimeHistory
 import debug_flag
 # Set to True to get printouts
 debug_flag.DEBUG = False
@@ -47,7 +48,11 @@ if __name__ == '__main__':
 
     gen, n_steps = make_generator(args.data_path, args.batch_size, num_steps=args.num_batches, dataset_name=args.input_name, **modelmod.generator_args)
 
-    prediction = model.predict(gen, verbose=1)
+    timer = TimeHistory()
+
+    prediction = model.predict(gen, verbose=1, callbacks=[timer])
+
+    print('Prediction time: %fs' % (timer.stop - timer.start))
 
     need_dataset_x = (args.root_out_path or args.ascii_out_dir)
 

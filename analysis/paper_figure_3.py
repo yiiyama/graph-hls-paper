@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from matplotlib.cm import get_cmap
 import matplotlib.gridspec as gridspec
 import matplotlib.lines as mlines
+import matplotlib.ticker as mticker
+from matplotlib.transforms import Bbox
 
 plot_name = sys.argv[1]
 
@@ -39,10 +41,12 @@ for ititle in range(2):
     else:
         part = 'Pion'
 
-    title = '%s %.1f (%.1f) GeV, Pileup %.1f (%.1f) GeV' % (part, prim[0], prim[1], pu[0], pu[1])
+    title1 = '%s %.1f (%.1f) GeV' % (part, prim[0], prim[1])
+    title2 = 'Pileup %.1f (%.1f) GeV' % (pu[0], pu[1])
 
     ax = fig.add_subplot(gs[0, 1 + ititle * half_gcol:1 + (ititle + 1) * half_gcol], frame_on=False, xticks=(), yticks=())
-    ax.text(0.5, 0.5, title, transform=ax.transAxes, va='center', ha='center', fontsize='large')
+    ax.text(0.5, 0.8, title1, transform=ax.transAxes, va='center', ha='center', fontsize='xx-large')
+    ax.text(0.5, 0.2, title2, transform=ax.transAxes, va='center', ha='center', fontsize='xx-large')
 
 for irow in range(2):
     if irow == 0:
@@ -51,7 +55,7 @@ for irow in range(2):
         row_label = '(b)'
 
     ax = fig.add_subplot(gs[1 + irow * half_grow:1 + (irow + 1) * half_grow, 0], frame_on=False, xticks=(), yticks=())
-    ax.text(0.5, 0.5, row_label, transform=ax.transAxes, va='center', ha='center', fontsize='large')
+    #ax.text(0.5, 0.5, row_label, transform=ax.transAxes, va='center', ha='center', fontsize='large')
 
     if irow == 0:
         # event display
@@ -68,9 +72,9 @@ for irow in range(2):
     for icol in range(2):
         ax = fig.add_subplot(gs[1 + irow * half_grow:1 + (irow + 1) * half_grow, 1 + icol * half_gcol:1 + (icol + 1) * half_gcol], projection='3d')
         ax.set_ylim(15., -15.)
-        ax.set_xlabel('z (cm)')
-        ax.set_ylabel('x (cm)')
-        ax.set_zlabel('y (cm)')
+        ax.set_xlabel('z (cm)', fontsize='x-large')
+        ax.set_ylabel('x (cm)', fontsize='x-large')
+        ax.set_zlabel('y (cm)', fontsize='x-large')
         axes.append(ax)
 
         with h5py.File(sources[irow][icol], 'r') as source:
@@ -97,20 +101,32 @@ for irow in range(2):
         p_in = ax.scatter(xs=x_in, ys=z_in, zs=y_in, c=c_in, s=s_in, alpha=1., vmin=vmin_in, vmax=vmax_in, cmap=cmap_in)
         ax.scatter(xs=x_out, ys=z_out, zs=y_out, c=c_out, s=s_out, alpha=0.3, vmin=vmin_out, vmax=vmax_out, cmap=cmap_out)
 
+        x_loc = mticker.FixedLocator([-15., 0., 15.])
+        y_loc = mticker.FixedLocator([0., 15., 30., 45.])
+        z_loc = mticker.FixedLocator([-15., 0., 15.])
+        ax.xaxis.set_major_locator(y_loc)
+        ax.yaxis.set_major_locator(z_loc)
+        ax.zaxis.set_major_locator(x_loc)
+
+        ax.tick_params('x', labelsize='x-large')
+        ax.tick_params('y', labelsize='x-large')
+        ax.tick_params('z', labelsize='x-large')
+
     ax = fig.add_subplot(gs[1 + irow * half_grow:1 + (irow + 1) * half_grow, -1], frame_on=False, xticks=(), yticks=(), clip_on=False)
 
     cbar = fig.colorbar(p_in, ax=ax, shrink=0.9)
+    cbar.ax.tick_params(labelsize='x-large')
     if irow == 0:
-        cbar.set_label('Primary fraction')
+        cbar.set_label('Primary fraction', fontsize='x-large')
     else:
-        cbar.set_label(r'$\Delta E_{\mathrm{pred}}/\Delta h$')
+        cbar.set_label(r'$\Delta E_{\mathrm{pred}}/\Delta h$', fontsize='x-large')
 
 handles = [
     mlines.Line2D([], [], alpha=1., color='black', marker='o', linestyle='None', markersize=10),
     mlines.Line2D([], [], alpha=0.3, color='black', marker='o', linestyle='None', markersize=10)
 ]
 labels = ['Clustered', 'Unclustered']
-fig.legend(handles, labels, loc='upper right', frameon=False, bbox_to_anchor=(0.83, 0.4))
+fig.legend(handles, labels, loc='upper right', frameon=False, bbox_to_anchor=(0.86, 0.4), fontsize='x-large')
 
-fig.savefig('%s.pdf' % plot_name, bbox_inches='tight')
-fig.savefig('%s.png' % plot_name, bbox_inches='tight')
+fig.savefig('%s.pdf' % plot_name, bbox_inches='tight', pad_inches=0.2)
+fig.savefig('%s.png' % plot_name, bbox_inches='tight', pad_inches=0.2)

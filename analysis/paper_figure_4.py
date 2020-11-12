@@ -25,7 +25,7 @@ with h5py.File('/afs/cern.ch/work/y/yiiyama/graph-hls-paper/figure2/prediction_k
     keras_quantized_c = source['pred_classification'][:]
     keras_quantized_r = source['pred_regression'][:]
 
-with open('/afs/cern.ch/user/y/yiiyama/src/graph-hls-paper/hls4ml/combined/prequantization/tb_data/csim_results.log') as source:
+with open('/afs/cern.ch/user/y/yiiyama/src/graph-hls-paper/hls4ml/combined_cpu2/prequantization/tb_data/csim_results.log') as source:
     hls_continuous_c = np.empty(keras_continuous_c.shape, dtype=np.float)
     hls_continuous_r = np.empty(keras_continuous_r.shape, dtype=np.float)
     for iline, line in enumerate(source):
@@ -34,7 +34,7 @@ with open('/afs/cern.ch/user/y/yiiyama/src/graph-hls-paper/hls4ml/combined/prequ
         else:
             hls_continuous_c[iline // 2] = float(line.strip())
 
-with open('/afs/cern.ch/user/y/yiiyama/src/graph-hls-paper/hls4ml/combined/quantized/tb_data/csim_results.log') as source:
+with open('/afs/cern.ch/user/y/yiiyama/src/graph-hls-paper/hls4ml/combined_cpu2/quantized/tb_data/csim_results.log') as source:
     hls_quantized_c = np.empty(keras_quantized_c.shape, dtype=np.float)
     hls_quantized_r = np.empty(keras_quantized_r.shape, dtype=np.float)
     for iline, line in enumerate(source):
@@ -95,7 +95,7 @@ gs = gridspec.GridSpec(13, 2, hspace=0., wspace=0.25, figure=fig)
 ## Classification
 
 ax = fig.add_subplot(gs[0, 0], frame_on=False, xticks=(), yticks=())
-ax.text(0.5, 0.5, 'Classification', transform=ax.transAxes, va='center', ha='center', fontsize='large')
+ax.text(0.5, 0.5, 'Classification', transform=ax.transAxes, va='center', ha='center', fontsize='xx-large')
 
 ax = fig.add_subplot(gs[1:, 0])
 plt.plot(1. - fpr_keras_continuous, tpr_keras_continuous, label='Keras continuous', color=colors[0])
@@ -105,39 +105,44 @@ plt.plot(1. - fpr_hls_quantized, tpr_hls_quantized, label='HLS quantized', color
 plt.plot(1. - fpr_reference, tpr_reference, label='Cut-based', color=colors[4])
 plt.xlim([0.7, 1.])
 plt.ylim([0.7, 1.])
-plt.xlabel('Pion rejection efficiency')
-plt.ylabel('Electron identification efficiency')
+plt.xlabel('Pion rejection efficiency', fontsize='large')
+plt.ylabel('Electron identification efficiency', fontsize='large')
 handles, labels = ax.get_legend_handles_labels()
-plt.legend(handles, labels, fontsize='small')
+plt.legend(handles, labels, fontsize='large')
+ax.tick_params(axis='both', labelsize='large')
 
-axins = ax.inset_axes([0.1, 0.3, 0.35, 0.35])
-axins.plot(1. - fpr_keras_continuous, tpr_keras_continuous, label='Keras continuous', color=colors[0])
-axins.plot(1. - fpr_hls_continuous, tpr_hls_continuous, label='HLS continuous', color=colors[1], linestyle='--')
-axins.plot(1. - fpr_keras_quantized, tpr_keras_quantized, label='Keras quantized', color=colors[2])
-axins.plot(1. - fpr_hls_quantized, tpr_hls_quantized, label='HLS quantized', color=colors[3], linestyle='--')
-axins.plot(1. - fpr_reference, tpr_reference, label='Cut-based', color=colors[4])
+axins = ax.inset_axes([0.12, 0.37, 0.35, 0.35])
+axins.plot(1. - fpr_keras_continuous, tpr_keras_continuous, color=colors[0])
+axins.plot(1. - fpr_hls_continuous, tpr_hls_continuous, color=colors[1], linestyle='--')
+axins.plot(1. - fpr_keras_quantized, tpr_keras_quantized, color=colors[2])
+axins.plot(1. - fpr_hls_quantized, tpr_hls_quantized, color=colors[3], linestyle='--')
+axins.plot(1. - fpr_reference, tpr_reference, color=colors[4])
 axins.set_xlim([0.9, 0.96])
 axins.set_ylim([0.9, 0.96])
-axins.tick_params(axis='both', labelsize='x-small')
+axins.tick_params(axis='both', labelsize='large')
 
-logoins = ax.inset_axes([0.32, 0.01, 0.25, 0.07], frame_on=False)
+logoins = ax.inset_axes([0.78, 0.925, 0.25, 0.07], frame_on=False)
 logoins.tick_params(which='both', bottom=False, top=False, labelbottom=False, left=False, right=False, labelleft=False)
 logoins.imshow(logo)
 
 ## Regression
 
 ax = fig.add_subplot(gs[0, 1], frame_on=False, xticks=(), yticks=())
-ax.text(0.5, 0.5, 'Regression', transform=ax.transAxes, va='center', ha='center', fontsize='large')
+ax.text(0.5, 0.5, 'Regression', transform=ax.transAxes, va='center', ha='center', fontsize='xx-large')
 
 for ipart in (0, 1):
     if ipart == 0:
         ax0 = fig.add_subplot(gs[1:7, 1])
         plt.setp(ax0.get_xticklabels(), visible=False)
-        plt.text(80., 0.25, 'Electrons')
+        plt.text(80., 0.52, 'Electrons', fontsize='large')
+        plt.ylim([0.47, 2.47])
+        ax0.tick_params(axis='y', labelsize='large')
     else:
         ax1 = fig.add_subplot(gs[7:, 1], sharex=ax0)
-        plt.text(80., 0.25, 'Pions')
-        plt.xlabel('Primary particle energy (GeV)')
+        plt.text(80., 0.3, 'Pions', fontsize='large')
+        plt.ylim([0.25, 2.25])
+        plt.xlabel('Primary particle energy (GeV)', fontsize='large')
+        ax1.tick_params(axis='both', labelsize='large')
 
     plt.plot([ebins[0], ebins[-1]], [1., 1.], lw=1., ls='-', color='black')
 
@@ -151,18 +156,17 @@ for ipart in (0, 1):
         plt.boxplot(data[ipart], whis=(5., 95.), sym='', positions=positions, manage_ticks=False, widths=2., whiskerprops=lstyle, boxprops=lstyle, capprops=capprops, medianprops=lstyle)
 
     plt.xlim([ebins[0], ebins[-1]])
-    plt.ylim([0.1, 1.9])
 
 handles = [mlines.Line2D([], [], color=colors[i], lw=1., ls=('--' if i % 2 == 1 else '-')) for i in range(4)]
 handles.append(mlines.Line2D([], [], color=colors[4], lw=1.))
 labels = ['Keras continuous', 'HLS continuous', 'Keras quantized', 'HLS quantized', 'Weight-based']
-ax0.legend(handles, labels, fontsize='x-small', loc='upper right')
+ax0.legend(handles, labels, fontsize='large', loc='upper right')
 
-logoins = ax0.inset_axes([0.37, 0.85, 0.5, 0.14], frame_on=False)
+logoins = ax1.inset_axes([0.65, 0.85, 0.5, 0.14], frame_on=False)
 logoins.tick_params(which='both', bottom=False, top=False, labelbottom=False, left=False, right=False, labelleft=False)
 logoins.imshow(logo)
     
-fig.text(0.5, 0.45, 'Response', rotation='vertical')
+fig.text(0.5, 0.45, 'Response', rotation='vertical', fontsize='large')
 
 fig.savefig('%s.pdf' % plot_name, bbox_inches='tight')
 fig.savefig('%s.png' % plot_name, bbox_inches='tight')

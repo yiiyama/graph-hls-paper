@@ -26,8 +26,23 @@ typedef G4RunManager RunManager;
 
 namespace {
   void PrintUsage() {
-    G4cerr << " Usage: " << G4endl;
-    G4cerr << " generate [-s seed] [-f outfile] [-dh] [macro]" << G4endl;
+    G4cerr << "Usage: " << G4endl;
+    G4cerr << "generate [-s SEED] [-f FILE] [-j THREADS]" << G4endl;
+    G4cerr << " [-e EMIN EMAX] [-x XMAX YMAX] [-p PARTICLES]" << G4endl;
+    G4cerr << " [-n EVENTS] [-guh] [macro]" << G4endl;
+    G4cerr << G4endl;
+    G4cerr << "The options are:" << G4endl;
+    G4cerr << "  -s SEED      Set the random number seed to SEED (integer)." << G4endl;
+    G4cerr << "  -f FILE      Write the output data file to FILE (path)." << G4endl;
+    G4cerr << "  -j THREADS   Run in THREADS (integer) threads." << G4endl;
+    G4cerr << "  -e EMIN EMAX Set the minimum and maximum of the generated particle." << G4endl;
+    G4cerr << "  -x XMAX YMAX Set the size of the X-Y region where the particles originate." << G4endl;
+    G4cerr << "  -p PARTICLES Set particle types to generate (Use comma- or space-separated" << G4endl;
+    G4cerr << "               G4 particle names). End the list with a hyphen." << G4endl;
+    G4cerr << "  -n EVENTS    Generate EVENTS (integer) events." << G4endl;
+    G4cerr << "  -g           Save the geometry to the output file and exit." << G4endl;
+    G4cerr << "  -u           Add pileup to the events." << G4endl;
+    G4cerr << "  -h           Show this message." << G4endl;
   }
 }
 

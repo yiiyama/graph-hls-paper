@@ -1,5 +1,9 @@
 #!/bin/bash
 
+## EDIT BELOW
+OUTBASE=/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated2
+## EDIT ABOVE
+
 PART=$1
 EMIN=$2
 EMAX=$3
@@ -22,7 +26,7 @@ else
   $THISDIR/generate -f events.root -e $EMIN $EMAX -p $PART -n $NGEN -s $SEED
 fi
 
-OUTDIR=/eos/cms/store/cmst3/user/yiiyama/graph_hls_paper/generated/${PART}_${EMIN}_${EMAX}/$SEEDBASE
+OUTDIR=$OUTBASE/${PART}_${EMIN}_${EMAX}/$SEEDBASE
 
 mkdir -p $OUTDIR
 

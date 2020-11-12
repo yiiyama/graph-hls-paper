@@ -14,9 +14,6 @@ $(TARGET): $(OBJECTS) $(TARGET).cc
 visualize: $(OBJECTS) visualize.cc
 	g++ $(CFLAGS) $(LIBS) -o $@ $^
 
-fuck: fuck.cc
-	g++ $(CFLAGS) $(LIBS) -o $@ $^
-
 obj/%.o: src/%.cc include/%.hh
 	mkdir -p obj
 	g++ $(CFLAGS) $(LIBS) -c -o $@ $<
